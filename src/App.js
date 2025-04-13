@@ -21,6 +21,8 @@ import CartPage from './pages/user/CartPage';
 import CheckoutPage from './pages/user/CheckoutPage';
 import ProfilePage from './pages/user/ProfilePage';
 import OrderHistoryPage from './pages/user/OrderHistoryPage';
+import CollectionsPage from './pages/user/CollectionsPage';
+import CollectionDetailPage from './pages/user/CollectionDetailPage';
 
 // Admin Pages
 import ProductManagementPage from './pages/admin/ProductManagementPage';
@@ -34,9 +36,10 @@ const PrivateRoute = ({ children }) => {
   return currentUser ? children : <Navigate to="/login" />;
 };
 
+// Admin Routes
 const AdminRoute = ({ children }) => {
-  const { currentUser, isAdmin } = useAuth();
-  return currentUser && isAdmin ? children : <Navigate to="/" />;
+  const { currentUser } = useAuth();
+  return currentUser && currentUser.role === 'admin' ? children : <Navigate to="/login" />;
 };
 
 function App() {
@@ -57,6 +60,8 @@ function App() {
                 <Route path="register" element={<RegisterPage />} />
                 <Route path="products" element={<ProductListPage />} />
                 <Route path="products/:id" element={<ProductDetailPage />} />
+                <Route path="collections" element={<CollectionsPage />} />
+                <Route path="collections/:id" element={<CollectionDetailPage />} />
                 <Route path="cart" element={<CartPage />} />
                 <Route path="checkout" element={
                   <PrivateRoute>

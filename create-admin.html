@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tạo Tài Khoản Admin</title>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        button {
+            background: #1890ff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .success {
+            color: green;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Tạo Tài Khoản Admin</h1>
+        <div>
+            <p><strong>Email:</strong> admin@example.com</p>
+            <p><strong>Mật khẩu:</strong> admin123</p>
+            <button id="createAdmin">Tạo Tài Khoản Admin</button>
+            <div id="result"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('createAdmin').addEventListener('click', function() {
+            const users = JSON.parse(localStorage.getItem('users') || '[]');
+            
+            // Kiểm tra xem đã có tài khoản admin chưa
+            if (users.find(u => u.role === 'admin')) {
+                document.getElementById('result').innerHTML = '<p class="success">Tài khoản admin đã tồn tại!</p>';
+                return;
+            }
+            
+            // Tạo tài khoản admin mới
+            users.push({
+                id: Date.now().toString(),
+                email: 'admin@example.com',
+                password: 'admin123',
+                name: 'Administrator',
+                role: 'admin',
+                createdAt: new Date().toISOString()
+            });
+            
+            // Lưu vào localStorage
+            localStorage.setItem('users', JSON.stringify(users));
+            
+            document.getElementById('result').innerHTML = '<p class="success">Tài khoản admin đã được tạo thành công!</p>';
+        });
+    </script>
+</body>
+</html> 
