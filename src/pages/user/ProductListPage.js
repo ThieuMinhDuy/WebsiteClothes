@@ -30,6 +30,7 @@ const ProductListPage = () => {
   const [viewMode, setViewMode] = useState('grid');
   const [filtersVisible, setFiltersVisible] = useState(true);
   const [hoveredProduct, setHoveredProduct] = useState(null);
+  const [imageIndices, setImageIndices] = useState({});
 
   const { addToCart } = useCart();
   const location = useLocation();
@@ -104,6 +105,32 @@ const ProductListPage = () => {
     
     fetchData();
   }, [filters]);
+
+  // Hiệu ứng slide ảnh khi hover
+  useEffect(() => {
+    let slideInterval;
+    
+    if (hoveredProduct) {
+      const product = products.find(p => p.id === hoveredProduct);
+      
+      if (product && product.images && product.images.length > 1) {
+        // Bắt đầu interval để thay đổi ảnh
+        slideInterval = setInterval(() => {
+          setImageIndices(prev => {
+            const currentIndex = prev[hoveredProduct] || 0;
+            const nextIndex = (currentIndex + 1) % product.images.length;
+            return {...prev, [hoveredProduct]: nextIndex};
+          });
+        }, 1000); // Thay đổi ảnh mỗi 1 giây
+      }
+    }
+    
+    return () => {
+      if (slideInterval) {
+        clearInterval(slideInterval);
+      }
+    };
+  }, [hoveredProduct, products]);
 
   // Xử lý thay đổi bộ lọc
   const handleFilterChange = (key, value) => {
@@ -197,6 +224,32 @@ const ProductListPage = () => {
     });
     setCurrentPage(1);
     navigate('/products');
+  };
+
+  // Xử lý khi mouse enter vào card sản phẩm
+  const handleMouseEnter = (productId) => {
+    setHoveredProduct(productId);
+    // Đặt lại index ảnh về 0 khi bắt đầu hover
+    setImageIndices(prev => ({...prev, [productId]: 0}));
+  };
+
+  // Xử lý khi mouse leave khỏi card sản phẩm
+  const handleMouseLeave = () => {
+    setHoveredProduct(null);
+  };
+
+  // Lấy URL ảnh hiện tại cho sản phẩm
+  const getCurrentImage = (product) => {
+    if (!product.images || product.images.length === 0) {
+      return "https://via.placeholder.com/300x300?text=No+Image";
+    }
+    
+    if (hoveredProduct === product.id && product.images.length > 1) {
+      const currentIndex = imageIndices[product.id] || 0;
+      return product.images[currentIndex];
+    }
+    
+    return product.images[0];
   };
 
   return (
@@ -452,8 +505,8 @@ const ProductListPage = () => {
                     <Link to={`/products/${item.id}`}>
                       <div 
                         className="product-card"
-                        onMouseEnter={() => setHoveredProduct(item.id)}
-                        onMouseLeave={() => setHoveredProduct(null)}
+                        onMouseEnter={() => handleMouseEnter(item.id)}
+                        onMouseLeave={handleMouseLeave}
                       >
                         <Card
                           hoverable
@@ -464,7 +517,7 @@ const ProductListPage = () => {
                             <div style={{ position: 'relative', overflow: 'hidden' }}>
                               <img 
                                 alt={item.name} 
-                                src={hoveredProduct === item.id && item.images.length > 1 ? item.images[1] : item.images[0] || "https://via.placeholder.com/300x300?text=No+Image"} 
+                                src={getCurrentImage(item)} 
                                 style={{ 
                                   height: viewMode === 'list' ? 200 : 320, 
                                   width: '100%',
@@ -473,6 +526,32 @@ const ProductListPage = () => {
                                 }}
                                 className="product-image"
                               />
+                              
+                              {/* Chỉ số slide ảnh */}
+                              {hoveredProduct === item.id && item.images && item.images.length > 1 && (
+                                <div style={{ 
+                                  position: 'absolute', 
+                                  bottom: '10px', 
+                                  left: '50%', 
+                                  transform: 'translateX(-50%)',
+                                  display: 'flex',
+                                  gap: '5px',
+                                  zIndex: 2
+                                }}>
+                                  {item.images.map((_, index) => (
+                                    <div 
+                                      key={index}
+                                      style={{
+                                        width: '8px',
+                                        height: '8px',
+                                        borderRadius: '50%',
+                                        backgroundColor: (imageIndices[item.id] || 0) === index ? '#fff' : 'rgba(255, 255, 255, 0.5)',
+                                        boxShadow: '0 0 2px rgba(0, 0, 0, 0.5)'
+                                      }}
+                                    />
+                                  ))}
+                                </div>
+                              )}
                               
                               {/* Overlay buttons on hover */}
                               <div 

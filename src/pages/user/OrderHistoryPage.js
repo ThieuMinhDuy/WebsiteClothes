@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Table, Tag, Button, Space, Empty, Steps, Spin, Typography, Modal, Descriptions, Divider } from 'antd';
-import { EyeOutlined, CheckCircleOutlined, ClockCircleOutlined, StopOutlined } from '@ant-design/icons';
+import { Table, Tag, Button, Space, Empty, Steps, Spin, Typography, Modal, Descriptions, Divider, Rate, Input, message } from 'antd';
+import { EyeOutlined, CheckCircleOutlined, ClockCircleOutlined, StopOutlined, StarOutlined } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { getOrders } from '../../services/api/orderApi';
+import { checkProductReviewed, addProductReview } from '../../services/api/productApi';
 
 const { Title, Text } = Typography;
 const { Step } = Steps;
+const { TextArea } = Input;
 
 const OrderHistoryPage = () => {
   const { currentUser } = useAuth();
@@ -13,6 +15,12 @@ const OrderHistoryPage = () => {
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [currentOrder, setCurrentOrder] = useState(null);
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [reviewProduct, setReviewProduct] = useState(null);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewedItems, setReviewedItems] = useState({});
 
   // Tải đơn hàng của người dùng
   useEffect(() => {
@@ -23,6 +31,18 @@ const OrderHistoryPage = () => {
       try {
         const ordersData = await getOrders(currentUser.id);
         setOrders(ordersData);
+        
+        // Khởi tạo đối tượng lưu trạng thái đánh giá của các sản phẩm
+        const reviewedMap = {};
+        for (const order of ordersData) {
+          if (order.status === 'delivered' && order.items) {
+            for (const item of order.items) {
+              const key = `${order.id}-${item.id}`;
+              reviewedMap[key] = order.reviewedItems?.includes(item.id) || false;
+            }
+          }
+        }
+        setReviewedItems(reviewedMap);
       } catch (error) {
         console.error('Lỗi khi tải lịch sử đơn hàng:', error);
       } finally {
@@ -37,6 +57,55 @@ const OrderHistoryPage = () => {
   const showOrderDetail = (order) => {
     setCurrentOrder(order);
     setModalVisible(true);
+  };
+
+  // Hiển thị modal đánh giá sản phẩm
+  const showReviewModal = (order, product) => {
+    setCurrentOrder(order);
+    setReviewProduct(product);
+    setRating(5);
+    setComment('');
+    setReviewModalVisible(true);
+  };
+
+  // Gửi đánh giá sản phẩm
+  const submitReview = async () => {
+    if (!comment.trim()) {
+      message.warning('Vui lòng nhập nội dung đánh giá');
+      return;
+    }
+    
+    setSubmittingReview(true);
+    try {
+      const reviewData = {
+        productId: reviewProduct.id,
+        userId: currentUser.id,
+        userName: currentUser.name || currentUser.email,
+        rating,
+        comment: comment.trim(),
+        orderId: currentOrder.id
+      };
+      
+      await addProductReview(reviewData);
+      
+      // Cập nhật trạng thái đã đánh giá
+      const key = `${currentOrder.id}-${reviewProduct.id}`;
+      setReviewedItems(prev => ({ ...prev, [key]: true }));
+      
+      message.success('Cảm ơn bạn đã đánh giá sản phẩm!');
+      setReviewModalVisible(false);
+    } catch (error) {
+      console.error('Lỗi khi gửi đánh giá:', error);
+      message.error('Đã xảy ra lỗi khi gửi đánh giá. Vui lòng thử lại sau.');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
+  // Kiểm tra sản phẩm đã được đánh giá chưa
+  const isProductReviewed = (orderId, productId) => {
+    const key = `${orderId}-${productId}`;
+    return reviewedItems[key] || false;
   };
 
   // Lấy trạng thái đơn hàng hiện tại
@@ -249,6 +318,25 @@ const OrderHistoryPage = () => {
                   key: 'total',
                   render: record => `${(record.price * record.quantity).toLocaleString('vi-VN')}đ`,
                 },
+                {
+                  title: 'Đánh giá',
+                  key: 'action',
+                  render: (_, record) => (
+                    currentOrder.status === 'delivered' && (
+                      isProductReviewed(currentOrder.id, record.id) ? (
+                        <Tag color="green" icon={<CheckCircleOutlined />}>Đã đánh giá</Tag>
+                      ) : (
+                        <Button 
+                          type="primary" 
+                          icon={<StarOutlined />} 
+                          onClick={() => showReviewModal(currentOrder, record)}
+                        >
+                          Đánh giá
+                        </Button>
+                      )
+                    )
+                  ),
+                },
               ]}
               summary={() => (
                 <Table.Summary>
@@ -258,6 +346,7 @@ const OrderHistoryPage = () => {
                     <Table.Summary.Cell>
                       <Text>{currentOrder.subtotal.toLocaleString('vi-VN')}đ</Text>
                     </Table.Summary.Cell>
+                    <Table.Summary.Cell></Table.Summary.Cell>
                   </Table.Summary.Row>
                   <Table.Summary.Row>
                     <Table.Summary.Cell colSpan={2}></Table.Summary.Cell>
@@ -265,6 +354,7 @@ const OrderHistoryPage = () => {
                     <Table.Summary.Cell>
                       <Text>{currentOrder.shippingFee.toLocaleString('vi-VN')}đ</Text>
                     </Table.Summary.Cell>
+                    <Table.Summary.Cell></Table.Summary.Cell>
                   </Table.Summary.Row>
                   <Table.Summary.Row>
                     <Table.Summary.Cell colSpan={2}></Table.Summary.Cell>
@@ -276,10 +366,80 @@ const OrderHistoryPage = () => {
                         {currentOrder.total.toLocaleString('vi-VN')}đ
                       </Text>
                     </Table.Summary.Cell>
+                    <Table.Summary.Cell></Table.Summary.Cell>
                   </Table.Summary.Row>
                 </Table.Summary>
               )}
             />
+          </div>
+        )}
+      </Modal>
+      
+      {/* Modal đánh giá sản phẩm */}
+      <Modal
+        title="Đánh giá sản phẩm"
+        visible={reviewModalVisible}
+        onCancel={() => setReviewModalVisible(false)}
+        footer={[
+          <Button key="cancel" onClick={() => setReviewModalVisible(false)}>
+            Hủy
+          </Button>,
+          <Button 
+            key="submit" 
+            type="primary" 
+            loading={submittingReview} 
+            onClick={submitReview}
+          >
+            Gửi đánh giá
+          </Button>,
+        ]}
+      >
+        {reviewProduct && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
+              <img 
+                src={reviewProduct.images[0] || "https://via.placeholder.com/80x80?text=No+Image"} 
+                alt={reviewProduct.name}
+                style={{ width: 80, height: 80, objectFit: 'cover', marginRight: 16 }} 
+              />
+              <div>
+                <Title level={4} style={{ margin: 0 }}>{reviewProduct.name}</Title>
+                <div style={{ color: '#888' }}>
+                  Size: {reviewProduct.selectedSize}, Màu: {reviewProduct.selectedColor}
+                </div>
+              </div>
+            </div>
+            
+            <div style={{ marginBottom: 16 }}>
+              <Text strong>Đánh giá của bạn:</Text>
+              <div style={{ marginTop: 8 }}>
+                <Rate 
+                  value={rating} 
+                  onChange={setRating} 
+                  style={{ fontSize: 32 }} 
+                />
+                <div style={{ marginTop: 4 }}>
+                  {rating === 5 && <Text type="success">Rất hài lòng</Text>}
+                  {rating === 4 && <Text type="success">Hài lòng</Text>}
+                  {rating === 3 && <Text>Bình thường</Text>}
+                  {rating === 2 && <Text type="warning">Không hài lòng</Text>}
+                  {rating === 1 && <Text type="danger">Rất không hài lòng</Text>}
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <Text strong>Nhận xét chi tiết:</Text>
+              <TextArea 
+                rows={4} 
+                value={comment} 
+                onChange={e => setComment(e.target.value)}
+                placeholder="Hãy chia sẻ cảm nhận của bạn về sản phẩm (chất lượng, kiểu dáng, màu sắc, kích thước, ...)"
+                maxLength={1000}
+                showCount
+                style={{ marginTop: 8 }}
+              />
+            </div>
           </div>
         )}
       </Modal>

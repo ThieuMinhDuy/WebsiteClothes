@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Row, Col, Card, Statistic, Table, Typography, Spin, Calendar, Badge } from 'antd';
-import { UserOutlined, ShoppingOutlined, DollarOutlined, ShoppingCartOutlined } from '@ant-design/icons';
+import { UserOutlined, ShoppingOutlined, DollarOutlined, ShoppingCartOutlined, MessageOutlined } from '@ant-design/icons';
 import { getUsers } from '../../services/api/userApi';
 import { getOrders } from '../../services/api/orderApi';
 import { getProducts } from '../../services/api/productApi';
+import { getUnreadCountForAdmin } from '../../services/api/chatApi';
+import { Link } from 'react-router-dom';
 
 const { Title, Text } = Typography;
 
@@ -15,7 +17,8 @@ const AdminDashboard = () => {
     totalOrders: 0,
     totalRevenue: 0,
     recentOrders: [],
-    lowStockProducts: []
+    lowStockProducts: [],
+    unreadMessages: 0
   });
 
   useEffect(() => {
@@ -43,13 +46,17 @@ const AdminDashboard = () => {
           .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
           .slice(0, 5);
         
+        // Lấy số tin nhắn chưa đọc
+        const unreadCount = await getUnreadCountForAdmin();
+        
         setStats({
           totalUsers: users.length,
           totalProducts: products.length,
           totalOrders: orders.length,
           totalRevenue,
           recentOrders,
-          lowStockProducts
+          lowStockProducts,
+          unreadMessages: unreadCount
         });
       } catch (error) {
         console.error('Lỗi khi tải dữ liệu dashboard:', error);
@@ -80,6 +87,49 @@ const AdminDashboard = () => {
       <Badge count={ordersCount} style={{ backgroundColor: '#52c41a' }} />
     ) : null;
   };
+
+  const columns = [
+    {
+      title: 'Mã đơn hàng',
+      dataIndex: 'id',
+      key: 'id',
+      render: id => <Text copyable>{id.substring(0, 8)}</Text>,
+    },
+    {
+      title: 'Khách hàng',
+      dataIndex: 'shippingDetails',
+      key: 'customer',
+      render: shippingDetails => shippingDetails.name,
+    },
+    {
+      title: 'Tổng tiền',
+      dataIndex: 'total',
+      key: 'total',
+      render: total => `${total.toLocaleString('vi-VN')}đ`,
+    },
+    {
+      title: 'Trạng thái',
+      dataIndex: 'status',
+      key: 'status',
+      render: status => {
+        let color = 'gold';
+        let text = 'Chờ xác nhận';
+        
+        if (status === 'shipping') {
+          color = 'blue';
+          text = 'Đang giao';
+        } else if (status === 'completed') {
+          color = 'green';
+          text = 'Hoàn thành';
+        } else if (status === 'cancelled') {
+          color = 'red';
+          text = 'Đã hủy';
+        }
+        
+        return <Badge color={color} text={text} />;
+      },
+    },
+  ];
 
   return (
     <div>
@@ -120,15 +170,17 @@ const AdminDashboard = () => {
                 />
               </Card>
             </Col>
-            <Col xs={24} sm={12} md={6}>
+            <Col xs={24} sm={12} md={12} lg={6}>
               <Card>
                 <Statistic
-                  title="Doanh thu"
-                  value={stats.totalRevenue}
-                  prefix={<DollarOutlined />}
-                  suffix="đ"
-                  formatter={value => `${value.toLocaleString('vi-VN')}`}
+                  title="Tin nhắn chưa đọc"
+                  value={stats.unreadMessages}
+                  prefix={<MessageOutlined />}
+                  valueStyle={{ color: '#fa8c16' }}
                 />
+                <div style={{ marginTop: 16 }}>
+                  <Link to="/admin/chat">Quản lý tin nhắn</Link>
+                </div>
               </Card>
             </Col>
           </Row>
@@ -138,44 +190,10 @@ const AdminDashboard = () => {
             <Col xs={24} lg={12} style={{ marginBottom: 24 }}>
               <Card title="Đơn hàng gần đây">
                 <Table
+                  columns={columns}
                   dataSource={stats.recentOrders}
                   rowKey="id"
                   pagination={false}
-                  columns={[
-                    {
-                      title: 'Mã đơn',
-                      dataIndex: 'id',
-                      key: 'id',
-                      render: id => id.slice(0, 8) + '...',
-                    },
-                    {
-                      title: 'Khách hàng',
-                      dataIndex: 'shippingDetails',
-                      key: 'customer',
-                      render: details => details.name,
-                    },
-                    {
-                      title: 'Trạng thái',
-                      dataIndex: 'status',
-                      key: 'status',
-                      render: status => {
-                        const statusMap = {
-                          pending: { color: 'gold', text: 'Chờ xác nhận' },
-                          confirmed: { color: 'blue', text: 'Đã xác nhận' },
-                          shipping: { color: 'cyan', text: 'Đang giao' },
-                          delivered: { color: 'green', text: 'Đã giao' },
-                          cancelled: { color: 'red', text: 'Đã hủy' }
-                        };
-                        return <Badge color={statusMap[status].color} text={statusMap[status].text} />;
-                      },
-                    },
-                    {
-                      title: 'Tổng tiền',
-                      dataIndex: 'total',
-                      key: 'total',
-                      render: total => `${total.toLocaleString('vi-VN')}đ`,
-                    },
-                  ]}
                 />
               </Card>
             </Col>

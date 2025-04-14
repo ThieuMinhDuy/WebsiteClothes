@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Row, Col, Typography, Carousel, Card, Button, InputNumber, Select, Tabs, Descriptions, Rate, Divider, message, List, Tag, Tooltip, Collapse, Image } from 'antd';
-import { ShoppingCartOutlined, HeartOutlined, CheckOutlined, LeftOutlined, RightOutlined, InfoCircleOutlined, SyncOutlined, CarOutlined, SkinOutlined } from '@ant-design/icons';
-import { getProductById, getRelatedProducts } from '../../services/api/productApi';
+import { Row, Col, Typography, Carousel, Card, Button, InputNumber, Select, Tabs, Descriptions, Rate, Divider, message, List, Tag, Tooltip, Collapse, Image, Avatar } from 'antd';
+import { ShoppingCartOutlined, HeartOutlined, CheckOutlined, LeftOutlined, RightOutlined, InfoCircleOutlined, SyncOutlined, CarOutlined, SkinOutlined, UserOutlined, LikeOutlined } from '@ant-design/icons';
+import { getProductById, getRelatedProducts, getProductReviews } from '../../services/api/productApi';
 import { useCart } from '../../contexts/CartContext';
 import { Link } from 'react-router-dom';
 import React from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -16,6 +17,7 @@ const ProductDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToCart } = useCart();
+  const { currentUser } = useAuth();
   
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -42,6 +44,9 @@ const ProductDetailPage = () => {
     slidesToScroll: 1,
     effect: 'fade',
   };
+  
+  const [reviews, setReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
   
   useEffect(() => {
     const fetchProduct = async () => {
@@ -97,6 +102,62 @@ const ProductDetailPage = () => {
       setDisplayedImages(product.images);
     }
   }, [selectedColor, product]);
+  
+  // Tải đánh giá sản phẩm
+  useEffect(() => {
+    const fetchReviews = async () => {
+      if (!id) return;
+      
+      setReviewsLoading(true);
+      try {
+        const reviewsData = await getProductReviews(id);
+        // Sắp xếp đánh giá mới nhất lên đầu
+        reviewsData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        setReviews(reviewsData);
+      } catch (error) {
+        console.error('Lỗi khi tải đánh giá sản phẩm:', error);
+      } finally {
+        setReviewsLoading(false);
+      }
+    };
+    
+    fetchReviews();
+  }, [id]);
+  
+  // Format thời gian đánh giá
+  const formatReviewTime = (timestamp) => {
+    const now = new Date();
+    const reviewTime = new Date(timestamp);
+    
+    const diffTime = Math.abs(now - reviewTime);
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) {
+      const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+      if (diffHours === 0) {
+        const diffMinutes = Math.floor(diffTime / (1000 * 60));
+        return `${diffMinutes} phút trước`;
+      }
+      return `${diffHours} giờ trước`;
+    } else if (diffDays === 1) {
+      return 'Hôm qua';
+    } else if (diffDays < 7) {
+      return `${diffDays} ngày trước`;
+    } else if (diffDays < 30) {
+      const diffWeeks = Math.floor(diffDays / 7);
+      return `${diffWeeks} tuần trước`;
+    } else {
+      return reviewTime.toLocaleDateString('vi-VN');
+    }
+  };
+  
+  // Tính điểm đánh giá trung bình
+  const calculateAverageRating = () => {
+    if (!reviews || reviews.length === 0) return 0;
+    
+    const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
+    return (totalRating / reviews.length).toFixed(1);
+  };
   
   if (loading || !product) {
     return <div style={{ textAlign: 'center', padding: '50px' }}>Đang tải...</div>;
@@ -191,6 +252,12 @@ const ProductDetailPage = () => {
       </ul>
     </div>
   );
+  
+  // Chuyển đến trang lịch sử đơn hàng để đánh giá
+  const goToOrderHistory = () => {
+    navigate('/order-history');
+    message.info('Bạn có thể đánh giá sản phẩm sau khi nhận hàng thành công');
+  };
   
   return (
     <div>
@@ -331,10 +398,10 @@ const ProductDetailPage = () => {
           <div style={{ position: 'sticky', top: '20px' }}>
             <Title level={2}>{product.name}</Title>
             <div style={{ display: 'flex', alignItems: 'center', margin: '8px 0' }}>
-              <Rate disabled defaultValue={4.5} /> 
-              <Text style={{ marginLeft: '8px' }}>(120 đánh giá)</Text>
+              <Rate disabled value={product.rating?.average || calculateAverageRating()} allowHalf /> 
+              <Text style={{ marginLeft: '8px' }}>({product.rating?.count || reviews.length} đánh giá)</Text>
               <Divider type="vertical" />
-              <Text>Đã bán: 350</Text>
+              <Text>Đã bán: {product.soldCount || 0}</Text>
             </div>
             
             {/* Giá và giá giảm */}
@@ -554,49 +621,77 @@ const ProductDetailPage = () => {
               </div>
             </div>
           </TabPane>
-          <TabPane tab="Đánh giá" key="4">
+          <TabPane tab={`Đánh giá (${reviews.length})`} key="4">
             <div style={{ padding: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                 <div>
-                  <Title level={2} style={{ marginBottom: '0' }}>4.5/5</Title>
-                  <Rate disabled defaultValue={4.5} allowHalf />
-                  <div>Dựa trên 120 đánh giá</div>
+                  <Title level={2} style={{ marginBottom: '0' }}>{calculateAverageRating()}/5</Title>
+                  <Rate disabled value={Number(calculateAverageRating())} allowHalf />
+                  <div>Dựa trên {reviews.length} đánh giá</div>
                 </div>
                 <div>
-                  <Button type="primary">Viết đánh giá</Button>
+                  <Button 
+                    type="primary" 
+                    onClick={goToOrderHistory}
+                  >
+                    {currentUser ? 'Xem đơn hàng để đánh giá' : 'Đăng nhập để đánh giá'}
+                  </Button>
                 </div>
               </div>
               
               <Divider />
               
-              {/* Demo đánh giá */}
-              <div style={{ marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <Text strong>Nguyễn Văn A</Text>
-                    <div><Rate disabled defaultValue={5} /></div>
-                  </div>
-                  <div>2 ngày trước</div>
+              {reviewsLoading ? (
+                <div style={{ textAlign: 'center', padding: '30px' }}>
+                  <div>Đang tải đánh giá...</div>
                 </div>
-                <Paragraph style={{ marginTop: '8px' }}>
-                  Sản phẩm rất tốt, chất lượng vải đẹp, đúng kích cỡ. Giao hàng nhanh, đóng gói cẩn thận.
-                </Paragraph>
-              </div>
-              
-              <Divider />
-              
-              <div style={{ marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <Text strong>Trần Thị B</Text>
-                    <div><Rate disabled defaultValue={4} /></div>
-                  </div>
-                  <div>1 tuần trước</div>
+              ) : reviews.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px' }}>
+                  <div>Chưa có đánh giá nào cho sản phẩm này</div>
                 </div>
-                <Paragraph style={{ marginTop: '8px' }}>
-                  Áo đẹp, đúng mẫu. Tuy nhiên hơi rộng một chút so với kích cỡ thông thường. Nên đặt nhỏ hơn 1 size.
-                </Paragraph>
-              </div>
+              ) : (
+                <List
+                  itemLayout="vertical"
+                  dataSource={reviews}
+                  renderItem={review => (
+                    <List.Item
+                      key={review.id}
+                      actions={[
+                        <span key="like">
+                          <Tooltip title="Hữu ích">
+                            <LikeOutlined style={{ marginRight: 8 }} />
+                          </Tooltip>
+                          <span style={{ color: '#8c8c8c' }}>{review.likes}</span>
+                        </span>
+                      ]}
+                      extra={<span>{formatReviewTime(review.createdAt)}</span>}
+                    >
+                      <List.Item.Meta
+                        avatar={
+                          <Avatar 
+                            icon={<UserOutlined />} 
+                            style={{ backgroundColor: '#1890ff' }} 
+                          />
+                        }
+                        title={
+                          <div>
+                            <Text strong>{review.userName}</Text>
+                            <div>
+                              <Rate disabled defaultValue={review.rating} />
+                              {review.verified && (
+                                <Tag color="green" style={{ marginLeft: '8px' }}>
+                                  Đã mua hàng
+                                </Tag>
+                              )}
+                            </div>
+                          </div>
+                        }
+                        description={<p style={{ margin: '8px 0' }}>{review.comment}</p>}
+                      />
+                    </List.Item>
+                  )}
+                />
+              )}
             </div>
           </TabPane>
         </Tabs>

@@ -1,5 +1,39 @@
+import { initChatData } from '../api/chatApi';
+
 export const initializeAppData = () => {
-  // Kiểm tra và khởi tạo dữ liệu nếu chưa có
+  console.log('Đang khởi tạo dữ liệu ứng dụng...');
+  
+  // Khởi tạo dữ liệu người dùng nếu chưa có
+  if (!localStorage.getItem('users')) {
+    console.log('Khởi tạo dữ liệu người dùng mẫu...');
+    const sampleUsers = [
+      {
+        id: '1',
+        name: 'Admin',
+        email: 'admin@example.com',
+        password: 'admin123',
+        role: 'admin',
+        phone: '0123456789',
+        address: 'Hà Nội, Việt Nam',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: '2',
+        name: 'Người dùng',
+        email: 'user@example.com',
+        password: 'user123',
+        role: 'user',
+        phone: '0987654321',
+        address: 'Hồ Chí Minh, Việt Nam',
+        createdAt: new Date().toISOString()
+      }
+    ];
+    localStorage.setItem('users', JSON.stringify(sampleUsers));
+  } else {
+    console.log('Dữ liệu người dùng đã tồn tại, bỏ qua khởi tạo');
+  }
+  
+  // Kiểm tra xem danh sách sản phẩm đã tồn tại hay chưa
   if (!localStorage.getItem('products')) {
     const sampleProducts = [
       {
@@ -209,6 +243,13 @@ export const initializeAppData = () => {
     ];
     localStorage.setItem('products', JSON.stringify(sampleProducts));
   }
+  
+  // Khởi tạo các dữ liệu khác nếu cần...
+  
+  // Đảm bảo các bảng dữ liệu khác được khởi tạo
+  if (!localStorage.getItem('orders')) {
+    localStorage.setItem('orders', JSON.stringify([]));
+  }
 
   if (!localStorage.getItem('categories')) {
     const categories = [
@@ -220,25 +261,20 @@ export const initializeAppData = () => {
     localStorage.setItem('categories', JSON.stringify(categories));
   }
 
-  if (!localStorage.getItem('users')) {
-    const users = [
-      {
-        id: '1',
-        email: 'admin@example.com',
-        password: 'admin123',
-        name: 'Admin',
-        role: 'admin',
-        phone: '0987654321',
-        address: 'Hà Nội',
-        avatar: null,
-        createdAt: new Date().toISOString(),
-        active: true
-      }
-    ];
-    localStorage.setItem('users', JSON.stringify(users));
+  // Khởi tạo khung dữ liệu đánh giá sản phẩm nếu chưa có
+  if (!localStorage.getItem('productReviews')) {
+    localStorage.setItem('productReviews', JSON.stringify({}));
+  }
+  
+  // In ra thông tin đã khởi tạo dữ liệu để debug
+  console.log('Đã hoàn tất khởi tạo dữ liệu ứng dụng');
+  console.log('Người dùng:', localStorage.getItem('users'));
+  
+  // Đảm bảo không đè dữ liệu giỏ hàng hiện tại
+  if (!localStorage.getItem('cart')) {
+    localStorage.setItem('cart', JSON.stringify([]));
   }
 
-  if (!localStorage.getItem('orders')) {
-    localStorage.setItem('orders', JSON.stringify([]));
-  }
+  // Khởi tạo dữ liệu chat
+  initChatData();
 };

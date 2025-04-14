@@ -23,6 +23,8 @@ const HomePage = () => {
   const [newArrivals, setNewArrivals] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hoveredProduct, setHoveredProduct] = useState(null);
+  const [imageIndices, setImageIndices] = useState({});
 
   useEffect(() => {
     const fetchData = async () => {
@@ -49,6 +51,58 @@ const HomePage = () => {
     
     fetchData();
   }, []);
+
+  // Hiệu ứng slide ảnh khi hover
+  useEffect(() => {
+    let slideInterval;
+    
+    if (hoveredProduct) {
+      const product = [...featuredProducts, ...newArrivals].find(p => p.id === hoveredProduct);
+      
+      if (product && product.images && product.images.length > 1) {
+        // Bắt đầu interval để thay đổi ảnh
+        slideInterval = setInterval(() => {
+          setImageIndices(prev => {
+            const currentIndex = prev[hoveredProduct] || 0;
+            const nextIndex = (currentIndex + 1) % product.images.length;
+            return {...prev, [hoveredProduct]: nextIndex};
+          });
+        }, 1000); // Thay đổi ảnh mỗi 1 giây
+      }
+    }
+    
+    return () => {
+      if (slideInterval) {
+        clearInterval(slideInterval);
+      }
+    };
+  }, [hoveredProduct, featuredProducts, newArrivals]);
+
+  // Xử lý khi mouse enter vào card sản phẩm
+  const handleMouseEnter = (productId) => {
+    setHoveredProduct(productId);
+    // Đặt lại index ảnh về 0 khi bắt đầu hover
+    setImageIndices(prev => ({...prev, [productId]: 0}));
+  };
+
+  // Xử lý khi mouse leave khỏi card sản phẩm
+  const handleMouseLeave = () => {
+    setHoveredProduct(null);
+  };
+
+  // Lấy URL ảnh hiện tại cho sản phẩm
+  const getCurrentImage = (product) => {
+    if (!product.images || product.images.length === 0) {
+      return "https://via.placeholder.com/300x300?text=No+Image";
+    }
+    
+    if (hoveredProduct === product.id && product.images.length > 1) {
+      const currentIndex = imageIndices[product.id] || 0;
+      return product.images[currentIndex];
+    }
+    
+    return product.images[0];
+  };
 
   // Hero Section banners
   const heroBanners = [
@@ -302,6 +356,91 @@ const HomePage = () => {
           </Row>
         </div>
 
+        {/* Promotion Section */}
+        <div 
+          style={{ 
+            padding: '80px 0', 
+            background: 'linear-gradient(to right, #ff4d4d, #ff8c00)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+        >
+          <div 
+            style={{ 
+              position: 'absolute', 
+              top: 0, 
+              left: 0, 
+              right: 0, 
+              bottom: 0, 
+              backgroundImage: 'url("/assets/images/pattern.png")',
+              opacity: 0.1,
+              backgroundRepeat: 'repeat',
+              zIndex: 1
+            }}
+          ></div>
+
+          <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 20px', position: 'relative', zIndex: 2 }}>
+            <Row gutter={[32, 32]} align="middle">
+              <Col xs={24} md={12}>
+                <div style={{ textAlign: 'left' }}>
+                  <Title level={1} style={{ color: 'white', fontWeight: 'bold', marginBottom: '20px', fontSize: '48px' }}>
+                    KHUYẾN MÃI LỚN
+                  </Title>
+                  <Title level={3} style={{ color: 'white', marginTop: 0, marginBottom: '30px', fontWeight: 'normal' }}>
+                    Giảm giá đến 50% cho các sản phẩm chọn lọc
+                  </Title>
+                  <Paragraph style={{ color: 'white', fontSize: '18px', lineHeight: '1.6', marginBottom: '30px' }}>
+                    Khám phá ngay bộ sưu tập sản phẩm giảm giá ít nhất 20%. Cơ hội không thể bỏ lỡ để sở hữu những món đồ chất lượng với giá cực tốt.
+                  </Paragraph>
+                  <Link to="/promotions">
+                    <Button 
+                      type="primary" 
+                      size="large" 
+                      style={{ 
+                        background: 'white', 
+                        borderColor: 'white', 
+                        color: '#ff4d4d',
+                        height: '50px',
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        width: '200px',
+                        borderRadius: '4px'
+                      }}
+                    >
+                      XEM NGAY <ArrowRightOutlined />
+                    </Button>
+                  </Link>
+                </div>
+              </Col>
+              <Col xs={24} md={12}>
+                <div style={{ display: 'flex', justifyContent: 'center', position: 'relative' }}>
+                  <FireOutlined style={{ position: 'absolute', top: '-30px', right: '60px', fontSize: '80px', color: 'white', opacity: 0.6 }} />
+                  <div style={{ 
+                    background: 'white', 
+                    borderRadius: '50%', 
+                    width: '300px', 
+                    height: '300px', 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center',
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                    animation: 'pulse 2s infinite'
+                  }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <Title level={1} style={{ color: '#ff4d4d', fontWeight: 'bold', margin: 0, fontSize: '80px' }}>
+                        -50%
+                      </Title>
+                      <Title level={3} style={{ color: '#333', margin: 0 }}>
+                        GIÁ SỐC
+                      </Title>
+                    </div>
+                  </div>
+                </div>
+              </Col>
+            </Row>
+          </div>
+        </div>
+
         {/* New Arrivals */}
         <div style={{ padding: '80px 0', background: '#f8f8f8', margin: '0' }}>
           <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 20px' }}>
@@ -330,7 +469,7 @@ const HomePage = () => {
                           <div style={{ position: 'relative', overflow: 'hidden' }}>
                             <img 
                               alt={item.name} 
-                              src={item.images[0] || "https://images.unsplash.com/photo-1576566588028-4147f3842f27?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80"} 
+                              src={getCurrentImage(item)} 
                               style={{ 
                                 height: 350, 
                                 width: '100%', 
@@ -338,9 +477,36 @@ const HomePage = () => {
                                 transition: 'transform 0.5s ease'
                               }}
                               className="product-image"
-                              onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                              onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                              onMouseOver={() => handleMouseEnter(item.id)}
+                              onMouseOut={handleMouseLeave}
                             />
+                            
+                            {/* Chỉ số slide ảnh */}
+                            {hoveredProduct === item.id && item.images && item.images.length > 1 && (
+                              <div style={{ 
+                                position: 'absolute', 
+                                bottom: '10px', 
+                                left: '50%', 
+                                transform: 'translateX(-50%)',
+                                display: 'flex',
+                                gap: '5px',
+                                zIndex: 2
+                              }}>
+                                {item.images.map((_, index) => (
+                                  <div 
+                                    key={index}
+                                    style={{
+                                      width: '8px',
+                                      height: '8px',
+                                      borderRadius: '50%',
+                                      backgroundColor: (imageIndices[item.id] || 0) === index ? '#fff' : 'rgba(255, 255, 255, 0.5)',
+                                      boxShadow: '0 0 2px rgba(0, 0, 0, 0.5)'
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                            
                             <Tag color="#000" style={{ position: 'absolute', top: 10, right: 10, fontSize: '12px', fontWeight: '400' }}>
                               NEW
                             </Tag>
@@ -448,7 +614,7 @@ const HomePage = () => {
                       <div style={{ position: 'relative', overflow: 'hidden' }}>
                         <img 
                           alt={item.name} 
-                          src={item.images[0] || "https://images.unsplash.com/photo-1434389677669-e08b4cac3105?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80"} 
+                          src={getCurrentImage(item)} 
                           style={{ 
                             height: 350, 
                             width: '100%', 
@@ -456,9 +622,36 @@ const HomePage = () => {
                             transition: 'transform 0.5s ease'
                           }}
                           className="product-image"
-                          onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                          onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                          onMouseOver={() => handleMouseEnter(item.id)}
+                          onMouseOut={handleMouseLeave}
                         />
+                        
+                        {/* Chỉ số slide ảnh */}
+                        {hoveredProduct === item.id && item.images && item.images.length > 1 && (
+                          <div style={{ 
+                            position: 'absolute', 
+                            bottom: '10px', 
+                            left: '50%', 
+                            transform: 'translateX(-50%)',
+                            display: 'flex',
+                            gap: '5px',
+                            zIndex: 2
+                          }}>
+                            {item.images.map((_, index) => (
+                              <div 
+                                key={index}
+                                style={{
+                                  width: '8px',
+                                  height: '8px',
+                                  borderRadius: '50%',
+                                  backgroundColor: (imageIndices[item.id] || 0) === index ? '#fff' : 'rgba(255, 255, 255, 0.5)',
+                                  boxShadow: '0 0 2px rgba(0, 0, 0, 0.5)'
+                                }}
+                              />
+                            ))}
+                          </div>
+                        )}
+                        
                         {item.discount > 0 && (
                           <Tag color="#ff0000" style={{ position: 'absolute', top: 10, left: 10, fontSize: '12px', fontWeight: '400' }}>
                             -{item.discount}%

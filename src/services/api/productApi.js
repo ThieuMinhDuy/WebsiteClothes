@@ -316,6 +316,166 @@ const getProductsByCollection = (collectionId) => {
   });
 };
 
+const getPromotionProducts = (minDiscountPercent = 20) => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const products = JSON.parse(localStorage.getItem('products')) || [];
+      
+      // Lọc sản phẩm có giảm giá lớn hơn hoặc bằng minDiscountPercent
+      const promotionProducts = products.filter(product => 
+        product.discount >= minDiscountPercent
+      );
+      
+      // Sắp xếp theo mức giảm giá từ cao đến thấp
+      promotionProducts.sort((a, b) => b.discount - a.discount);
+      
+      resolve(promotionProducts);
+    }, 300);
+  });
+};
+
+/**
+ * Lấy đánh giá sản phẩm
+ * @param {string} productId - ID sản phẩm cần lấy đánh giá
+ * @returns {Promise<Array>} - Danh sách đánh giá
+ */
+export const getProductReviews = (productId) => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const reviews = JSON.parse(localStorage.getItem('productReviews')) || {};
+      resolve(reviews[productId] || []);
+    }, 300);
+  });
+};
+
+/**
+ * Thêm đánh giá mới cho sản phẩm
+ * @param {Object} reviewData - Dữ liệu đánh giá
+ * @param {string} reviewData.productId - ID sản phẩm
+ * @param {string} reviewData.userId - ID người dùng
+ * @param {string} reviewData.userName - Tên người dùng
+ * @param {number} reviewData.rating - Số sao đánh giá (1-5)
+ * @param {string} reviewData.comment - Nội dung đánh giá
+ * @param {string} reviewData.orderId - ID đơn hàng liên quan
+ * @returns {Promise<Object>} - Đánh giá đã thêm
+ */
+export const addProductReview = (reviewData) => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const { productId, userId, userName, rating, comment, orderId } = reviewData;
+      
+      // Tải đánh giá hiện có
+      const allReviews = JSON.parse(localStorage.getItem('productReviews')) || {};
+      const productReviews = allReviews[productId] || [];
+      
+      // Tạo đánh giá mới
+      const newReview = {
+        id: Date.now().toString(),
+        productId,
+        userId,
+        userName,
+        rating,
+        comment,
+        orderId,
+        createdAt: new Date().toISOString(),
+        likes: 0,
+        verified: true
+      };
+      
+      // Thêm đánh giá mới vào danh sách
+      productReviews.push(newReview);
+      allReviews[productId] = productReviews;
+      
+      // Lưu vào localStorage
+      localStorage.setItem('productReviews', JSON.stringify(allReviews));
+      
+      // Cập nhật trạng thái đánh giá cho đơn hàng
+      updateOrderReviewStatus(orderId, productId);
+      
+      // Cập nhật rating trung bình cho sản phẩm
+      updateProductAverageRating(productId);
+      
+      resolve(newReview);
+    }, 500);
+  });
+};
+
+/**
+ * Kiểm tra xem người dùng đã đánh giá sản phẩm trong đơn hàng chưa
+ * @param {string} orderId - ID đơn hàng
+ * @param {string} productId - ID sản phẩm
+ * @returns {Promise<boolean>} - Trạng thái đã đánh giá hay chưa
+ */
+export const checkProductReviewed = (orderId, productId) => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const allReviews = JSON.parse(localStorage.getItem('productReviews')) || {};
+      const productReviews = allReviews[productId] || [];
+      
+      // Kiểm tra xem sản phẩm đã được đánh giá trong đơn hàng này chưa
+      const reviewed = productReviews.some(review => review.orderId === orderId);
+      resolve(reviewed);
+    }, 300);
+  });
+};
+
+/**
+ * Cập nhật trạng thái đánh giá cho đơn hàng
+ * @param {string} orderId - ID đơn hàng
+ * @param {string} productId - ID sản phẩm
+ * @private
+ */
+const updateOrderReviewStatus = (orderId, productId) => {
+  const orders = JSON.parse(localStorage.getItem('orders')) || [];
+  const orderIndex = orders.findIndex(order => order.id === orderId);
+  
+  if (orderIndex !== -1) {
+    const order = orders[orderIndex];
+    
+    // Kiểm tra xem đơn hàng có mảng reviewedItems chưa
+    if (!order.reviewedItems) {
+      order.reviewedItems = [];
+    }
+    
+    // Thêm productId vào mảng reviewedItems nếu chưa có
+    if (!order.reviewedItems.includes(productId)) {
+      order.reviewedItems.push(productId);
+    }
+    
+    orders[orderIndex] = order;
+    localStorage.setItem('orders', JSON.stringify(orders));
+  }
+};
+
+/**
+ * Cập nhật điểm đánh giá trung bình cho sản phẩm
+ * @param {string} productId - ID sản phẩm
+ * @private
+ */
+const updateProductAverageRating = (productId) => {
+  const allReviews = JSON.parse(localStorage.getItem('productReviews')) || {};
+  const productReviews = allReviews[productId] || [];
+  
+  if (productReviews.length === 0) return;
+  
+  // Tính điểm trung bình
+  const totalRating = productReviews.reduce((sum, review) => sum + review.rating, 0);
+  const averageRating = totalRating / productReviews.length;
+  
+  // Cập nhật vào sản phẩm
+  const products = JSON.parse(localStorage.getItem('products')) || [];
+  const productIndex = products.findIndex(p => p.id === productId);
+  
+  if (productIndex !== -1) {
+    products[productIndex].rating = {
+      average: parseFloat(averageRating.toFixed(1)),
+      count: productReviews.length
+    };
+    
+    localStorage.setItem('products', JSON.stringify(products));
+  }
+};
+
 export {
   getProducts,
   getProductById,
@@ -326,5 +486,6 @@ export {
   getRelatedProducts,
   getCollections,
   getCollectionById,
-  getProductsByCollection
+  getProductsByCollection,
+  getPromotionProducts
 };

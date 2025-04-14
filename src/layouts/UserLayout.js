@@ -12,6 +12,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useState, useEffect } from 'react';
+import ChatBox from '../components/chat/ChatBox';
 // import logo from '../logo.svg';
 
 const { Header, Content, Footer } = Layout;
@@ -88,7 +89,7 @@ const UserLayout = () => {
     if (path === '/') return '1';
     if (path.includes('/products')) return '2';
     if (path.includes('/collections')) return '3';
-    if (path.includes('/promotion')) return '4';
+    if (path.includes('/promotions')) return '4';
     if (path.includes('/stores')) return '5';
     return '1';
   };
@@ -174,7 +175,7 @@ const UserLayout = () => {
             </Menu.Item>
 
             <Menu.Item key="6">
-              <Link to="/promotion">Khuyến Mãi</Link>
+              <Link to="/promotions">Khuyến Mãi</Link>
             </Menu.Item>
 
             <Menu.Item key="7">
@@ -319,7 +320,7 @@ const UserLayout = () => {
             ))}
           </Menu.SubMenu>
           <Menu.Item key="6">
-            <Link to="/promotion">Khuyến Mãi</Link>
+            <Link to="/promotions">Khuyến Mãi</Link>
           </Menu.Item>
           <Menu.Item key="7">
             <Link to="/stores">Cửa Hàng</Link>
@@ -369,6 +370,9 @@ const UserLayout = () => {
           ©{new Date().getFullYear()} UNIQLO - Đồ án Website Bán Quần Áo
         </div>
       </Footer>
+      
+      {/* Chat Box Component */}
+      <ChatBox />
     </Layout>
   );
 };

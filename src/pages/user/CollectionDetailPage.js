@@ -123,6 +123,8 @@ const CollectionDetailPage = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const { addToCart } = useCart();
+  const [hoveredProduct, setHoveredProduct] = useState(null);
+  const [imageIndices, setImageIndices] = useState({});
 
   useEffect(() => {
     const fetchCollectionAndProducts = async () => {
@@ -146,6 +148,58 @@ const CollectionDetailPage = () => {
     fetchCollectionAndProducts();
   }, [id]);
   
+  // Hiệu ứng slide ảnh khi hover
+  useEffect(() => {
+    let slideInterval;
+    
+    if (hoveredProduct) {
+      const product = products.find(p => p.id === hoveredProduct);
+      
+      if (product && product.images && product.images.length > 1) {
+        // Bắt đầu interval để thay đổi ảnh
+        slideInterval = setInterval(() => {
+          setImageIndices(prev => {
+            const currentIndex = prev[hoveredProduct] || 0;
+            const nextIndex = (currentIndex + 1) % product.images.length;
+            return {...prev, [hoveredProduct]: nextIndex};
+          });
+        }, 1000); // Thay đổi ảnh mỗi 1 giây
+      }
+    }
+    
+    return () => {
+      if (slideInterval) {
+        clearInterval(slideInterval);
+      }
+    };
+  }, [hoveredProduct, products]);
+
+  // Xử lý khi mouse enter vào card sản phẩm
+  const handleMouseEnter = (productId) => {
+    setHoveredProduct(productId);
+    // Đặt lại index ảnh về 0 khi bắt đầu hover
+    setImageIndices(prev => ({...prev, [productId]: 0}));
+  };
+
+  // Xử lý khi mouse leave khỏi card sản phẩm
+  const handleMouseLeave = () => {
+    setHoveredProduct(null);
+  };
+
+  // Lấy URL ảnh hiện tại cho sản phẩm
+  const getCurrentImage = (product) => {
+    if (!product.images || product.images.length === 0) {
+      return "https://via.placeholder.com/300x300?text=No+Image";
+    }
+    
+    if (hoveredProduct === product.id && product.images.length > 1) {
+      const currentIndex = imageIndices[product.id] || 0;
+      return product.images[currentIndex];
+    }
+    
+    return product.images[0];
+  };
+
   const handleAddToCart = (e, product) => {
     e.preventDefault();
     e.stopPropagation();
@@ -306,16 +360,42 @@ const CollectionDetailPage = () => {
                           <div style={{ overflow: 'hidden' }}>
                             <img 
                               alt={product.name} 
-                              src={product.images[0]}
+                              src={getCurrentImage(product)}
                               style={{ 
                                 height: '300px', 
                                 objectFit: 'cover',
                                 width: '100%',
                                 transition: 'transform 0.5s ease'
                               }}
-                              onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                              onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                              onMouseOver={() => handleMouseEnter(product.id)}
+                              onMouseOut={handleMouseLeave}
                             />
+                            
+                            {/* Chỉ số slide ảnh */}
+                            {hoveredProduct === product.id && product.images && product.images.length > 1 && (
+                              <div style={{ 
+                                position: 'absolute', 
+                                bottom: '10px', 
+                                left: '50%', 
+                                transform: 'translateX(-50%)',
+                                display: 'flex',
+                                gap: '5px',
+                                zIndex: 2
+                              }}>
+                                {product.images.map((_, index) => (
+                                  <div 
+                                    key={index}
+                                    style={{
+                                      width: '8px',
+                                      height: '8px',
+                                      borderRadius: '50%',
+                                      backgroundColor: (imageIndices[product.id] || 0) === index ? '#fff' : 'rgba(255, 255, 255, 0.5)',
+                                      boxShadow: '0 0 2px rgba(0, 0, 0, 0.5)'
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                            )}
                           </div>
                         }
                       >
