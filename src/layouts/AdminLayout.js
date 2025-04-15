@@ -6,7 +6,8 @@ import {
   UserOutlined,
   OrderedListOutlined,
   LogoutOutlined,
-  MessageOutlined
+  MessageOutlined,
+  GiftOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -41,7 +42,10 @@ const AdminLayout = () => {
           <Menu.Item key="5" icon={<MessageOutlined />}>
             <Link to="/admin/chat">Quản lý chat</Link>
           </Menu.Item>
-          <Menu.Item key="6" icon={<LogoutOutlined />} onClick={handleLogout}>
+          <Menu.Item key="6" icon={<GiftOutlined />}>
+            <Link to="/admin/vouchers">Mã giảm giá</Link>
+          </Menu.Item>
+          <Menu.Item key="7" icon={<LogoutOutlined />} onClick={handleLogout}>
             Đăng xuất
           </Menu.Item>
         </Menu>

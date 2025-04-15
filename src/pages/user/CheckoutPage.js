@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Form, Input, Button, Select, Radio, Divider, Row, Col, Card, Typography, Steps, message, Space, Modal, Checkbox } from 'antd';
+import { Form, Input, Button, Select, Radio, Divider, Row, Col, Card, Typography, Steps, message, Space, Modal, Checkbox, Tooltip } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../contexts/CartContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { createOrder } from '../../services/api/orderApi';
-import { CopyOutlined, CheckOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { validateVoucher, applyVoucher } from '../../services/api/voucherApi';
+import { CopyOutlined, CheckOutlined, InfoCircleOutlined, TagOutlined } from '@ant-design/icons';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -24,6 +25,11 @@ const CheckoutPage = () => {
   const [copySuccess, setCopySuccess] = useState(false);
   const [codConfirmVisible, setCodConfirmVisible] = useState(false);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [voucherCode, setVoucherCode] = useState('');
+  const [voucherLoading, setVoucherLoading] = useState(false);
+  const [appliedVoucher, setAppliedVoucher] = useState(null);
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [shippingFee, setShippingFee] = useState(30000);
   
   // Thiết lập giá trị mặc định từ thông tin người dùng
   useEffect(() => {
@@ -77,6 +83,82 @@ const CheckoutPage = () => {
       });
   };
   
+  // Xử lý khi áp dụng mã giảm giá
+  const handleApplyVoucher = () => {
+    if (!voucherCode.trim()) {
+      message.warning('Vui lòng nhập mã giảm giá');
+      return;
+    }
+    
+    setVoucherLoading(true);
+    
+    applyVoucher(voucherCode, getCartTotal(), shippingFee)
+      .then(result => {
+        setAppliedVoucher(result.voucher);
+        setDiscountAmount(result.discount);
+        setShippingFee(result.shippingFee);
+        
+        // Thông báo chi tiết và trực quan hơn dựa theo loại voucher
+        let successMsg = '';
+        let iconType = '';
+        
+        switch (result.voucher.type) {
+          case 'percent':
+            successMsg = `Chúc mừng! Bạn đã được giảm ${result.voucher.value}% (${result.discount.toLocaleString('vi-VN')}đ)`;
+            iconType = 'success';
+            break;
+          case 'fixed':
+            successMsg = `Chúc mừng! Bạn đã được giảm ${result.discount.toLocaleString('vi-VN')}đ`;
+            iconType = 'success';
+            break;
+          case 'shipping':
+            successMsg = `Chúc mừng! Bạn đã được miễn phí vận chuyển ${result.discount.toLocaleString('vi-VN')}đ`;
+            iconType = 'success';
+            break;
+          default:
+            successMsg = `Đã áp dụng mã giảm giá thành công`;
+            iconType = 'success';
+        }
+        
+        // Hiển thị thông báo thành công với chi tiết
+        message.open({
+          type: iconType,
+          content: successMsg,
+          duration: 5,
+          style: {
+            marginTop: '20vh',
+          },
+        });
+      })
+      .catch(error => {
+        // Thông báo chi tiết khi có lỗi
+        message.open({
+          type: 'error',
+          content: error.message || 'Không thể áp dụng mã giảm giá',
+          duration: 5,
+          style: {
+            marginTop: '20vh',
+          },
+        });
+        
+        setAppliedVoucher(null);
+        setDiscountAmount(0);
+        setShippingFee(30000); // Reset về phí vận chuyển mặc định
+      })
+      .finally(() => {
+        setVoucherLoading(false);
+      });
+  };
+  
+  // Xử lý khi hủy mã giảm giá
+  const handleRemoveVoucher = () => {
+    setAppliedVoucher(null);
+    setDiscountAmount(0);
+    setShippingFee(30000); // Reset về phí vận chuyển mặc định
+    setVoucherCode('');
+    message.info('Đã hủy mã giảm giá');
+  };
+  
   // Xử lý khi người dùng bấm nút "Đặt hàng"
   const handleSubmitOrder = () => {
     form.validateFields().then(values => {
@@ -112,8 +194,10 @@ const CheckoutPage = () => {
         },
         paymentMethod: values.paymentMethod,
         subtotal: getCartTotal(),
-        shippingFee: 30000,
-        total: getCartTotal() + 30000,
+        shippingFee: shippingFee,
+        discount: discountAmount,
+        voucher: appliedVoucher ? appliedVoucher.code : null,
+        total: getCartTotal() + shippingFee - discountAmount,
         paymentStatus: values.paymentMethod === 'cod' ? 'pending' : 'processing'
       };
       
@@ -171,7 +255,7 @@ const CheckoutPage = () => {
   
   // Tạo URL QR VietQR
   const getQRCodeUrl = () => {
-    const amount = getCartTotal() + 30000;
+    const amount = getCartTotal() + shippingFee - discountAmount;
     const bankCode = 'VCB'; // Vietcombank
     const accountNumber = '9979542918';
     const accountName = 'BUI+VAN+HIEP';
@@ -265,7 +349,7 @@ const CheckoutPage = () => {
                 </Row>
                 <Row>
                   <Col span={8}><Text strong>Số tiền:</Text></Col>
-                  <Col span={16}><Text type="danger">{(getCartTotal() + 30000).toLocaleString('vi-VN')}đ</Text></Col>
+                  <Col span={16}><Text type="danger">{(getCartTotal() + shippingFee).toLocaleString('vi-VN')}đ</Text></Col>
                 </Row>
                 <Row>
                   <Col span={8}><Text strong>Nội dung CK:</Text></Col>
@@ -291,6 +375,70 @@ const CheckoutPage = () => {
           )}
           
           <Divider />
+          
+          {/* Phần mã giảm giá */}
+          <div style={{ marginBottom: 20 }}>
+            <Row gutter={[8, 8]} align="middle">
+              <Col span={16}>
+                <Input
+                  placeholder="Nhập mã giảm giá"
+                  value={voucherCode}
+                  onChange={e => setVoucherCode(e.target.value)}
+                  disabled={!!appliedVoucher}
+                  prefix={<TagOutlined style={{ color: '#1890ff' }} />}
+                />
+              </Col>
+              <Col span={8}>
+                {!appliedVoucher ? (
+                  <Button 
+                    type="primary" 
+                    onClick={handleApplyVoucher} 
+                    loading={voucherLoading}
+                    style={{ width: '100%' }}
+                  >
+                    Áp dụng
+                  </Button>
+                ) : (
+                  <Button 
+                    danger 
+                    onClick={handleRemoveVoucher}
+                    style={{ width: '100%' }}
+                  >
+                    Hủy mã
+                  </Button>
+                )}
+              </Col>
+            </Row>
+            
+            {appliedVoucher && (
+              <div 
+                style={{ 
+                  marginTop: 8, 
+                  padding: '8px 12px', 
+                  background: '#f6ffed', 
+                  border: '1px solid #b7eb8f', 
+                  borderRadius: 4
+                }}
+              >
+                <Row justify="space-between" align="middle">
+                  <Col>
+                    <Text strong style={{ color: '#52c41a' }}>
+                      {appliedVoucher.code}
+                    </Text>
+                    <br />
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {appliedVoucher.description}
+                    </Text>
+                  </Col>
+                  <Col>
+                    <Text type="success">
+                      -{discountAmount.toLocaleString('vi-VN')}đ
+                    </Text>
+                  </Col>
+                </Row>
+              </div>
+            )}
+          </div>
           
           <div style={{ background: '#f5f5f5', padding: 16, borderRadius: 4 }}>
             <Title level={5}>Thông tin đơn hàng</Title>
@@ -318,9 +466,18 @@ const CheckoutPage = () => {
             <Row style={{ marginBottom: 8 }}>
               <Col span={16}>Phí vận chuyển</Col>
               <Col span={8} style={{ textAlign: 'right' }}>
-                30,000đ
+                {shippingFee.toLocaleString('vi-VN')}đ
               </Col>
             </Row>
+            
+            {discountAmount > 0 && (
+              <Row style={{ marginBottom: 8 }}>
+                <Col span={16}>Giảm giá</Col>
+                <Col span={8} style={{ textAlign: 'right', color: '#52c41a' }}>
+                  -{discountAmount.toLocaleString('vi-VN')}đ
+                </Col>
+              </Row>
+            )}
             
             <Divider style={{ margin: '12px 0' }} />
             
@@ -328,7 +485,7 @@ const CheckoutPage = () => {
               <Col span={16}><Text strong>Tổng cộng</Text></Col>
               <Col span={8} style={{ textAlign: 'right' }}>
                 <Text strong style={{ fontSize: '16px', color: 'red' }}>
-                  {(getCartTotal() + 30000).toLocaleString('vi-VN')}đ
+                  {(getCartTotal() + shippingFee - discountAmount).toLocaleString('vi-VN')}đ
                 </Text>
               </Col>
             </Row>
@@ -377,7 +534,7 @@ const CheckoutPage = () => {
           Đơn hàng của bạn sẽ được giao đến địa chỉ: <Text strong>{form.getFieldValue('address')}</Text>
         </Paragraph>
         <Paragraph>
-          Tổng số tiền cần thanh toán khi nhận hàng: <Text strong style={{ color: 'red' }}>{(getCartTotal() + 30000).toLocaleString('vi-VN')}đ</Text>
+          Tổng số tiền cần thanh toán khi nhận hàng: <Text strong style={{ color: 'red' }}>{(getCartTotal() + shippingFee - discountAmount).toLocaleString('vi-VN')}đ</Text>
         </Paragraph>
         <Paragraph type="secondary">
           Lưu ý: Vui lòng chuẩn bị đúng số tiền khi nhận hàng để việc giao nhận được thuận lợi.
@@ -436,7 +593,7 @@ const CheckoutPage = () => {
             </Row>
             <Row>
               <Col span={10}><Text strong>Số tiền:</Text></Col>
-              <Col span={14}><Text type="danger">{(getCartTotal() + 30000).toLocaleString('vi-VN')}đ</Text></Col>
+              <Col span={14}><Text type="danger">{(getCartTotal() + shippingFee - discountAmount).toLocaleString('vi-VN')}đ</Text></Col>
             </Row>
             <Row>
               <Col span={10}><Text strong>Nội dung CK:</Text></Col>

@@ -4,6 +4,10 @@ import './index.css';
 import 'antd/dist/reset.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import { initializeLocalStorage } from './services/initData';
+
+// Khởi tạo dữ liệu mẫu trong localStorage
+initializeLocalStorage();
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

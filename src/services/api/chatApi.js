@@ -252,8 +252,8 @@ export const getConversationsForAdmin = async () => {
 };
 
 /**
- * Lấy số lượng tin nhắn chưa đọc cho admin
- * @returns {Promise<number>} - Số lượng tin nhắn chưa đọc
+ * Lấy số tin nhắn chưa đọc cho admin
+ * @returns {Promise<number>} - Số tin nhắn chưa đọc
  */
 export const getUnreadCountForAdmin = async () => {
   // Mô phỏng độ trễ của API thực tế
@@ -263,11 +263,9 @@ export const getUnreadCountForAdmin = async () => {
   let count = 0;
 
   conversations.forEach(conversation => {
-    conversation.messages.forEach(msg => {
-      if (msg.sender === 'user' && !msg.read) {
-        count++;
-      }
-    });
+    count += conversation.messages.filter(
+      msg => msg.sender === 'user' && !msg.read
+    ).length;
   });
 
   return count;

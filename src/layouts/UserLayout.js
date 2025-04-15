@@ -12,7 +12,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useState, useEffect } from 'react';
-import ChatBox from '../components/chat/ChatBox';
+import ChatBox from '../components/ChatBox/ChatBox';
 // import logo from '../logo.svg';
 
 const { Header, Content, Footer } = Layout;
@@ -86,11 +86,19 @@ const UserLayout = () => {
   // Xác định menu item hiện tại
   const getActiveKey = () => {
     const path = location.pathname;
+    const search = location.search;
+    
+    // Kiểm tra path và search params để xác định menu item active
     if (path === '/') return '1';
-    if (path.includes('/products')) return '2';
-    if (path.includes('/collections')) return '3';
-    if (path.includes('/promotions')) return '4';
-    if (path.includes('/stores')) return '5';
+    if (path.includes('/products')) {
+      if (search.includes('category=men')) return '2';
+      if (search.includes('category=women')) return '3';
+      if (search.includes('category=kids')) return '4';
+      return '2'; // Mặc định là Nam nếu không có category
+    }
+    if (path.includes('/collections')) return '5';
+    if (path.includes('/promotions')) return '6';
+    if (path.includes('/stores')) return '7';
     return '1';
   };
 

@@ -87,16 +87,18 @@ const ChatBox = () => {
       return;
     }
     
+    openChat();
+    
+    // Nếu người dùng chưa có cuộc trò chuyện nào, sẽ tự động tạo một cuộc trò chuyện mới khi mở chat
     if (userConversations.length === 0) {
-      setIsNewConversationModalVisible(true);
+      startNewConversation('Trò chuyện với Clothe Shop', '');
       return;
     }
     
+    // Nếu có cuộc trò chuyện nhưng chưa chọn cuộc trò chuyện nào
     if (!activeConversation && userConversations.length > 0) {
       setConversationActive(userConversations[0]);
     }
-    
-    openChat();
   };
   
   // Xử lý gửi tin nhắn

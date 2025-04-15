@@ -58,35 +58,22 @@ export const ChatProvider = ({ children }) => {
   };
 
   // Tạo cuộc trò chuyện mới
-  const startNewConversation = async (subject, initialMessage) => {
-    if (!currentUser) return null;
-    
-    setIsLoading(true);
+  const startNewConversation = async (subject, firstMessage = '') => {
     try {
+      if (!currentUser) return;
+
       const newConversation = await createConversation(currentUser.id, subject);
       
-      if (initialMessage) {
-        const firstMessage = await sendMessage({
-          userId: currentUser.id,
-          conversationId: newConversation.id,
-          text: initialMessage,
-          sender: 'user'
-        });
-        
-        // Cập nhật thông tin cuộc trò chuyện với tin nhắn đầu tiên
-        newConversation.messages = [firstMessage];
+      // Nếu có tin nhắn đầu tiên, gửi ngay
+      if (firstMessage.trim()) {
+        await sendMessage(newConversation.id, currentUser.id, firstMessage);
       }
       
-      setUserConversations([...userConversations, newConversation]);
-      setActiveConversation(newConversation);
-      setIsChatOpen(true);
-      
+      refreshConversations();
+      setConversationActive(newConversation);
       return newConversation;
     } catch (error) {
-      console.error('Error creating conversation:', error);
-      return null;
-    } finally {
-      setIsLoading(false);
+      console.error('Error creating new conversation:', error);
     }
   };
 

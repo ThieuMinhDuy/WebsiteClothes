@@ -160,16 +160,22 @@
 .ant-menu-horizontal > .ant-menu-item {
   margin: 0 8px;
   padding: 0 12px;
+  color: #ffffff !important;
 }
 
 .ant-menu-horizontal > .ant-menu-item:hover,
 .ant-menu-horizontal > .ant-menu-item-selected {
   border-bottom: 2px solid #ffffff !important;
   color: #ffffff !important;
-  background-color: #ff0000 !important;
+  background-color: #cc0000 !important;
 }
 
 .ant-menu-horizontal > .ant-menu-item a {
+  color: #ffffff !important;
+}
+
+.ant-menu-horizontal > .ant-menu-item:hover a,
+.ant-menu-horizontal > .ant-menu-item-selected a {
   color: #ffffff !important;
 }
 
@@ -177,6 +183,11 @@
   font-size: 15px;
   font-weight: 500;
   letter-spacing: 0.5px;
+  transition: all 0.3s ease;
+}
+
+.main-menu .ant-menu-item:hover a {
+  opacity: 0.8;
 }
 
 /* Header dropdown menu styles */
@@ -199,6 +210,10 @@
 .ant-dropdown-menu-item a {
   color: rgba(0,0,0,0.85);
   font-weight: 500;
+}
+
+.ant-dropdown-menu-item:hover a {
+  color: #ff0000;
 }
 
 /* Badge styles */
