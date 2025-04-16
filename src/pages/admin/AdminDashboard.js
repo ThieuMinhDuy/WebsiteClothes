@@ -241,16 +241,7 @@ const AdminDashboard = () => {
                 />
               </Card>
             </Col>
-          </Row>
-          
-          {/* Lịch đơn hàng */}
-          <Row>
-            <Col span={24}>
-              <Card title="Lịch đơn hàng">
-                <Calendar fullscreen={false} dateCellRender={dateCellRender} />
-              </Card>
-            </Col>
-          </Row>
+          </Row>  
         </>
       )}
     </div>

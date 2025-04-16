@@ -226,19 +226,19 @@ const CheckoutPage = () => {
   
   // Xử lý khi người dùng bấm nút "Đặt hàng"
   const handleSubmitOrder = () => {
-    form.validateFields().then(formValues => {
-      if (formValues.paymentMethod === 'cod') {
+    form.validateFields().then(values => {
+      if (values.paymentMethod === 'cod') {
         // Hiển thị modal xác nhận thanh toán COD
         setCodConfirmVisible(true);
       } else {
         // Chuẩn bị dữ liệu đơn hàng
-        prepareOrderData(formValues);
+        prepareOrderData(values);
       }
     });
   };
   
   // Chuẩn bị dữ liệu đơn hàng
-  const prepareOrderData = (formValues) => {
+  const prepareOrderData = (values) => {
     // Tạo mã đơn hàng nếu chưa có
     const finalOrderCode = orderCode || generateOrderCode();
     setOrderCode(finalOrderCode);
@@ -249,45 +249,51 @@ const CheckoutPage = () => {
       orderCode: finalOrderCode,
       items: cart,
       shippingDetails: {
-        name: formValues.name,
-        phone: formValues.phone,
-        email: formValues.email,
-        address: formValues.address,
-        notes: formValues.notes
+        name: values.name,
+        phone: values.phone,
+        email: values.email,
+        address: values.address,
+        notes: values.notes
       },
-      paymentMethod: formValues.paymentMethod,
+      paymentMethod: values.paymentMethod,
       subtotal: getCartTotal(),
-      shippingFee: shippingFee,
-      discount: discountAmount,
-      voucher: appliedVoucher ? appliedVoucher.code : null,
-      total: getCartTotal() + shippingFee - discountAmount,
-      paymentStatus: formValues.paymentMethod === 'cod' ? 'pending' : 'processing'
+      shippingFee: 30000,
+      total: getCartTotal() + 30000,
+      paymentStatus: values.paymentMethod === 'cod' ? 'pending' : 'processing'
     };
     
     setOrderData(data);
     
     // Nếu thanh toán bằng chuyển khoản, hiển thị QR
-    if (formValues.paymentMethod === 'bank_transfer') {
+    if (values.paymentMethod === 'bank_transfer') {
       setQrVisible(true);
     } else {
       // Lưu đơn hàng và chuyển đến bước hoàn thành
-      finalizeOrder(data);
+      finalizeOrder(data, values);
     }
   };
   
   // Lưu đơn hàng và hoàn tất
-  const finalizeOrder = async (data) => {
+  const finalizeOrder = async (data, values) => {
     setLoading(true);
     
     try {
-      await createOrder(data);
+      // Tạo đơn hàng
+      const order = await createOrder(data);
       clearCart();
       setCurrentStep(2);
-      message.success('Đặt hàng thành công!');
+      
+      // Hiển thị thông báo đặt hàng thành công nổi bật
+      notification.success({
+        message: '🎉 Đặt hàng thành công!',
+        description: `Mã đơn hàng: ${data.orderCode}. Đang chuyển đến trang xác nhận đặt hàng...`,
+        duration: 3,
+        placement: 'topRight',
+        icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />
+      });
       
       // Nếu thanh toán bằng COD, chuyển đến trang order success
-      if (data.paymentMethod === 'cod') {
-        clearCart();
+      if (values.paymentMethod === 'cod') {
         // Chuyển đến trang order success với thông tin đơn hàng
         navigate('/order-success', { 
           state: { orderDetails: data }
@@ -306,6 +312,7 @@ const CheckoutPage = () => {
       } catch (chatError) {
         console.error('Lỗi khi gửi thông báo qua chat:', chatError);
       }
+      
 
     } catch (error) {
       console.error('Lỗi khi đặt hàng:', error);
@@ -322,26 +329,20 @@ const CheckoutPage = () => {
   // Xử lý khi xác nhận thanh toán COD
   const handleConfirmCOD = () => {
     setCodConfirmVisible(false);
-    form.validateFields().then(formValues => {
-      prepareOrderData(formValues);
+    form.validateFields().then(values => {
+      prepareOrderData(values);
     });
   };
 
   // Xử lý khi hoàn tất thanh toán chuyển khoản
   const handleCompletePayment = async () => {
     try {
-      const formValues = await form.validateFields();
+      const values = form.getFieldsValue();
       const orderData = {
         userId: currentUser.id,
         orderCode: orderCode,
         items: cart,
-        shippingDetails: {
-          name: formValues.name,
-          phone: formValues.phone,
-          email: formValues.email,
-          address: formValues.address,
-          notes: formValues.notes
-        },
+        shippingDetails: form.getFieldsValue(['name', 'phone', 'email', 'address', 'notes']),
         paymentMethod: 'bank_transfer',
         subtotal: getCartTotal(),
         shippingFee: shippingFee,
@@ -351,8 +352,8 @@ const CheckoutPage = () => {
         paymentStatus: 'confirmed'
       };
       
-      clearCart();
-      setQrVisible(false);
+    clearCart();
+    setQrVisible(false);
       
       // Chuyển đến trang order success
       navigate('/order-success', { 
