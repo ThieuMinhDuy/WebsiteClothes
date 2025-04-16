@@ -5,20 +5,21 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useState } from 'react';
 
 const RegisterPage = () => {
-  const { register } = useAuth();
+  const { register, login } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
 
   const onFinish = async (values) => {
     try {
+      setLoading(true);
       // Kiểm tra và gỡ bỏ khoảng trắng
       const cleanedValues = {
         ...values,
         email: values.email.trim(),
         name: values.name.trim(),
         phone: values.phone.trim(),
-        address: values.address.trim()
       };
       
       // Xóa trường confirmPassword trước khi đăng ký
@@ -28,8 +29,9 @@ const RegisterPage = () => {
       console.log('Dữ liệu đăng ký:', userData);
       
       // Kiểm tra lại các trường bắt buộc
-      if (!userData.email || !userData.password || !userData.name || !userData.phone || !userData.address) {
+      if (!userData.email || !userData.password || !userData.name || !userData.phone) {
         message.error('Vui lòng điền đầy đủ thông tin đăng ký!');
+        setLoading(false);
         return;
       }
       
@@ -39,12 +41,19 @@ const RegisterPage = () => {
       console.log('Kết quả đăng ký:', result);
       
       if (result.success) {
-        message.success('Đăng ký thành công! Bạn có thể đăng nhập ngay bây giờ.');
+        message.success('Đăng ký thành công!');
         
-        // Chờ một chút trước khi chuyển hướng để người dùng thấy thông báo
-        setTimeout(() => {
+        // Tự động đăng nhập sau khi đăng ký
+        const loginResult = login(userData.email, userData.password);
+        
+        if (loginResult.success) {
+          message.success('Đăng nhập tự động thành công!');
+          navigate('/');
+        } else {
+          // Nếu đăng nhập tự động thất bại, chuyển về trang đăng nhập
+          message.warning('Không thể đăng nhập tự động. Vui lòng đăng nhập thủ công.');
           navigate('/login', { state: { registeredEmail: userData.email } });
-        }, 1500);
+        }
       } else {
         setError(result.message || 'Đăng ký thất bại! Vui lòng thử lại.');
         message.error(result.message || 'Đăng ký thất bại!');
@@ -53,6 +62,8 @@ const RegisterPage = () => {
       console.error('Lỗi khi xử lý đăng ký:', error);
       setError('Đã xảy ra lỗi khi đăng ký. Vui lòng thử lại.');
       message.error('Đã xảy ra lỗi khi đăng ký. Vui lòng thử lại.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -125,15 +136,10 @@ const RegisterPage = () => {
             <Input.Password prefix={<LockOutlined />} placeholder="Xác nhận mật khẩu" />
           </Form.Item>
           
-          <Form.Item
-            name="address"
-            rules={[{ required: true, message: 'Vui lòng nhập địa chỉ!' }]}
-          >
-            <Input.TextArea placeholder="Địa chỉ" rows={3} />
-          </Form.Item>
+        
 
           <Form.Item>
-            <Button type="primary" htmlType="submit" style={{ width: '100%' }}>
+            <Button type="primary" htmlType="submit" style={{ width: '100%' }} loading={loading} disabled={loading}>
               Đăng ký
             </Button>
           </Form.Item>

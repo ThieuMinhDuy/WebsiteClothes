@@ -23,7 +23,7 @@ const CheckoutPage = () => {
   const [qrVisible, setQrVisible] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [codConfirmVisible, setCodConfirmVisible] = useState(false);
-  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [orderData, setOrderData] = useState(null);
   
   // Thiết lập giá trị mặc định từ thông tin người dùng
   useEffect(() => {
@@ -84,51 +84,57 @@ const CheckoutPage = () => {
         // Hiển thị modal xác nhận thanh toán COD
         setCodConfirmVisible(true);
       } else {
-        // Tiến hành đặt hàng với chuyển khoản
-        onFinish(values);
+        // Chuẩn bị dữ liệu đơn hàng
+        prepareOrderData(values);
       }
     });
   };
   
-  const onFinish = async (values) => {
+  // Chuẩn bị dữ liệu đơn hàng
+  const prepareOrderData = (values) => {
+    // Tạo mã đơn hàng nếu chưa có
+    const finalOrderCode = orderCode || generateOrderCode();
+    setOrderCode(finalOrderCode);
+    
+    // Tạo đơn hàng mới
+    const data = {
+      userId: currentUser.id,
+      orderCode: finalOrderCode,
+      items: cart,
+      shippingDetails: {
+        name: values.name,
+        phone: values.phone,
+        email: values.email,
+        address: values.address,
+        notes: values.notes
+      },
+      paymentMethod: values.paymentMethod,
+      subtotal: getCartTotal(),
+      shippingFee: 30000,
+      total: getCartTotal() + 30000,
+      paymentStatus: values.paymentMethod === 'cod' ? 'pending' : 'processing'
+    };
+    
+    setOrderData(data);
+    
+    // Nếu thanh toán bằng chuyển khoản, hiển thị QR
+    if (values.paymentMethod === 'bank_transfer') {
+      setQrVisible(true);
+    } else {
+      // Lưu đơn hàng và chuyển đến bước hoàn thành
+      finalizeOrder(data);
+    }
+  };
+  
+  // Lưu đơn hàng và hoàn tất
+  const finalizeOrder = async (data) => {
     setLoading(true);
     
     try {
-      // Tạo mã đơn hàng nếu chưa có
-      const finalOrderCode = orderCode || generateOrderCode();
-      setOrderCode(finalOrderCode);
-      
-      // Tạo đơn hàng mới
-      const orderData = {
-        userId: currentUser.id,
-        orderCode: finalOrderCode,
-        items: cart,
-        shippingDetails: {
-          name: values.name,
-          phone: values.phone,
-          email: values.email,
-          address: values.address,
-          notes: values.notes
-        },
-        paymentMethod: values.paymentMethod,
-        subtotal: getCartTotal(),
-        shippingFee: 30000,
-        total: getCartTotal() + 30000,
-        paymentStatus: values.paymentMethod === 'cod' ? 'pending' : 'processing'
-      };
-      
-      const order = await createOrder(orderData);
-      
-      // Nếu thanh toán bằng chuyển khoản, hiển thị QR
-      if (values.paymentMethod === 'bank_transfer') {
-        setQrVisible(true);
-      } else {
-        // Chuyển đến bước hoàn thành
-        clearCart();
-        setCurrentStep(2);
-        message.success('Đặt hàng thành công!');
-      }
-      
+      await createOrder(data);
+      clearCart();
+      setCurrentStep(2);
+      message.success('Đặt hàng thành công!');
     } catch (error) {
       console.error('Lỗi khi đặt hàng:', error);
       message.error('Có lỗi xảy ra khi đặt hàng. Vui lòng thử lại sau.');
@@ -141,22 +147,23 @@ const CheckoutPage = () => {
   const handleConfirmCOD = () => {
     setCodConfirmVisible(false);
     form.validateFields().then(values => {
-      onFinish(values);
+      prepareOrderData(values);
     });
   };
 
   // Xử lý khi hoàn tất thanh toán chuyển khoản
   const handleCompletePayment = () => {
-    clearCart();
-    setQrVisible(false);
-    setCurrentStep(2);
-    message.success('Đặt hàng thành công!');
-  };
-
-  // Xử lý khi tự xác nhận đã chuyển khoản
-  const handleSelfConfirmPayment = () => {
-    setPaymentConfirmed(true);
-    message.success('Cảm ơn bạn đã xác nhận thanh toán!');
+    if (orderData) {
+      // Cập nhật trạng thái thanh toán thành công
+      const updatedOrderData = {
+        ...orderData,
+        paymentStatus: 'completed'
+      };
+      
+      // Lưu đơn hàng và hoàn tất
+      finalizeOrder(updatedOrderData);
+      setQrVisible(false);
+    }
   };
   
   const nextStep = () => {
@@ -393,19 +400,9 @@ const CheckoutPage = () => {
       visible={qrVisible}
       footer={[
         <Button 
-          key="selfConfirm" 
-          type={paymentConfirmed ? "default" : "primary"} 
-          onClick={handleSelfConfirmPayment}
-          disabled={paymentConfirmed}
-          style={{ marginRight: 8 }}
-        >
-          {paymentConfirmed ? "Đã xác nhận thanh toán" : "Tôi đã thanh toán"}
-        </Button>,
-        <Button 
           key="complete" 
-          type={paymentConfirmed ? "primary" : "default"} 
+          type="primary" 
           onClick={handleCompletePayment}
-          disabled={!paymentConfirmed}
         >
           Hoàn tất đơn hàng
         </Button>,
@@ -461,7 +458,7 @@ const CheckoutPage = () => {
               Sử dụng ứng dụng ngân hàng để quét mã QR hoặc chuyển khoản thủ công với thông tin trên.
             </Paragraph>
             <Paragraph type="secondary">
-              Sau khi chuyển khoản, hãy nhấn <Text strong>"Tôi đã thanh toán"</Text> và sau đó nhấn <Text strong>"Hoàn tất đơn hàng"</Text>.
+              Sau khi chuyển khoản, hãy nhấn <Text strong>"Hoàn tất đơn hàng"</Text> để hoàn thành quá trình đặt hàng.
             </Paragraph>
           </div>
         </div>
@@ -483,7 +480,6 @@ const CheckoutPage = () => {
         <Form
           form={form}
           layout="vertical"
-          onFinish={onFinish}
           initialValues={{ paymentMethod: 'cod' }}
         >
           {steps[currentStep].content}
