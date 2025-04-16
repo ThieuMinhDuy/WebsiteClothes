@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Form, Input, Button, Select, Radio, Divider, Row, Col, Card, Typography, Steps, message, Space, Modal, Checkbox } from 'antd';
+import { Form, Input, Button, Select, Radio, Divider, Row, Col, Card, Typography, Steps, message, Space, Modal, Checkbox, Tooltip, Tag, notification, Spin, Alert } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../contexts/CartContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { createOrder } from '../../services/api/orderApi';
-import { CopyOutlined, CheckOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { validateVoucher, applyVoucher } from '../../services/api/voucherApi';
+import { CopyOutlined, CheckOutlined, InfoCircleOutlined, TagOutlined, ShoppingOutlined, FileTextOutlined, CheckCircleOutlined, CustomerServiceOutlined, CarOutlined, DeleteOutlined } from '@ant-design/icons';
+import { sendSystemMessage } from '../../components/ChatBox/ChatBox';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -23,7 +25,18 @@ const CheckoutPage = () => {
   const [qrVisible, setQrVisible] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [codConfirmVisible, setCodConfirmVisible] = useState(false);
+<<<<<<< HEAD
   const [orderData, setOrderData] = useState(null);
+=======
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [voucherCode, setVoucherCode] = useState('');
+  const [voucherLoading, setVoucherLoading] = useState(false);
+  const [appliedVoucher, setAppliedVoucher] = useState(null);
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [shippingFee, setShippingFee] = useState(30000);
+  const [orderSuccessModalVisible, setOrderSuccessModalVisible] = useState(false);
+  const [voucherErrorMessage, setVoucherErrorMessage] = useState(null);
+>>>>>>> 5431660930fded447cff8e4779c5c53cce3ff665
   
   // Thiết lập giá trị mặc định từ thông tin người dùng
   useEffect(() => {
@@ -75,6 +88,141 @@ const CheckoutPage = () => {
         console.error('Lỗi khi sao chép:', err);
         message.error('Không thể sao chép mã đơn hàng');
       });
+  };
+  
+  // Xử lý khi áp dụng mã giảm giá
+  const handleApplyVoucher = () => {
+    if (!voucherCode.trim()) {
+      message.warning({
+        content: 'Vui lòng nhập mã giảm giá',
+        style: { marginTop: '20vh' },
+      });
+      return;
+    }
+    
+    setVoucherLoading(true);
+    console.log('Đang áp dụng mã giảm giá:', voucherCode);
+    
+    applyVoucher(voucherCode, getCartTotal(), shippingFee)
+      .then(result => {
+        setAppliedVoucher(result.voucher);
+        setDiscountAmount(result.discount);
+        setShippingFee(result.shippingFee);
+        
+        // Thông báo chi tiết và trực quan hơn dựa theo loại voucher
+        let successMsg = '';
+        let iconType = '';
+        
+        switch (result.voucher.type) {
+          case 'percent':
+            successMsg = `Chúc mừng! Bạn đã được giảm ${result.voucher.value}% (${result.discount.toLocaleString('vi-VN')}đ)`;
+            iconType = 'success';
+            break;
+          case 'fixed':
+            successMsg = `Chúc mừng! Bạn đã được giảm ${result.discount.toLocaleString('vi-VN')}đ`;
+            iconType = 'success';
+            break;
+          case 'shipping':
+            successMsg = `Chúc mừng! Bạn đã được miễn phí vận chuyển ${result.discount.toLocaleString('vi-VN')}đ`;
+            iconType = 'success';
+            break;
+          default:
+            successMsg = `Đã áp dụng mã giảm giá thành công`;
+            iconType = 'success';
+        }
+        
+        // Hiển thị thông báo thành công với chi tiết
+        message.open({
+          type: iconType,
+          content: successMsg,
+          duration: 5,
+          style: {
+            marginTop: '20vh',
+          },
+        });
+      })
+      .catch(error => {
+        // Thông báo chi tiết khi có lỗi
+        console.error('Lỗi khi áp dụng mã giảm giá:', error);
+        
+        let errorContent = error.message || 'Không thể áp dụng mã giảm giá. Vui lòng kiểm tra lại mã.';
+        let errorTitle = 'Không thể áp dụng mã giảm giá';
+        let errorType = 'error';
+        let meoContent = '';
+        let errorDuration = 7;
+        
+        // Kiểm tra lỗi cụ thể để hiển thị thông báo hướng dẫn
+        if (errorContent.includes("không tồn tại")) {
+          errorTitle = 'Mã giảm giá không tồn tại';
+          meoContent = 'Vui lòng kiểm tra lại mã giảm giá. Mã có thể đã nhập sai.';
+        }
+        else if (errorContent.includes("chưa đạt giá trị tối thiểu")) {
+          errorTitle = 'Đơn hàng chưa đạt giá trị tối thiểu';
+          meoContent = 'Mẹo: Thêm sản phẩm vào giỏ hàng để đạt giá trị tối thiểu cho mã giảm giá này';
+        } 
+        else if (errorContent.includes("đã hết hạn")) {
+          errorTitle = 'Mã giảm giá đã hết hạn';
+          meoContent = 'Mẹo: Kiểm tra các mã giảm giá khác trong mục "Khuyến mãi" hoặc đánh giá sản phẩm để nhận mã mới';
+        }
+        else if (errorContent.includes("đã đạt giới hạn lượt sử dụng")) {
+          errorTitle = 'Mã giảm giá đã hết lượt sử dụng';
+          meoContent = 'Mẹo: Đánh giá sản phẩm để nhận mã giảm giá mới hoặc liên hệ bộ phận CSKH';
+        }
+        else if (errorContent.includes("đã hết hiệu lực")) {
+          errorTitle = 'Mã giảm giá đã hết hiệu lực';
+          meoContent = 'Mã này đã bị vô hiệu hóa. Vui lòng sử dụng mã khác.';
+        }
+        
+        // Hiển thị thông báo hộp thoại lớn
+        notification.error({
+          message: errorTitle,
+          description: (
+            <div>
+              <div>{errorContent}</div>
+              {meoContent && (
+                <div style={{ marginTop: '10px', fontSize: '13px', color: '#722ed1' }}>
+                  <InfoCircleOutlined style={{ marginRight: '5px' }} />
+                  {meoContent}
+                </div>
+              )}
+            </div>
+          ),
+          duration: errorDuration,
+          style: { width: 400 }
+        });
+        
+        // Đồng thời hiển thị Alert trực tiếp trong trang
+        setAppliedVoucher(null);
+        setDiscountAmount(0);
+        setShippingFee(30000); // Reset về phí vận chuyển mặc định
+        
+        // Thêm state để lưu thông báo lỗi
+        setVoucherErrorMessage({
+          title: errorTitle,
+          content: errorContent,
+          tip: meoContent
+        });
+      })
+      .finally(() => {
+        setVoucherLoading(false);
+      });
+  };
+  
+  // Xóa thông báo lỗi khi người dùng sửa mã voucher
+  const handleVoucherCodeChange = (e) => {
+    setVoucherCode(e.target.value);
+    if (voucherErrorMessage) {
+      setVoucherErrorMessage(null);
+    }
+  };
+  
+  // Xử lý khi hủy mã giảm giá
+  const handleRemoveVoucher = () => {
+    setAppliedVoucher(null);
+    setDiscountAmount(0);
+    setShippingFee(30000); // Reset về phí vận chuyển mặc định
+    setVoucherCode('');
+    message.info('Đã hủy mã giảm giá');
   };
   
   // Xử lý khi người dùng bấm nút "Đặt hàng"
@@ -131,13 +279,79 @@ const CheckoutPage = () => {
     setLoading(true);
     
     try {
+<<<<<<< HEAD
       await createOrder(data);
       clearCart();
       setCurrentStep(2);
       message.success('Đặt hàng thành công!');
+=======
+      // Tạo mã đơn hàng nếu chưa có
+      const finalOrderCode = orderCode || generateOrderCode();
+      setOrderCode(finalOrderCode);
+      
+      // Tạo đơn hàng mới
+      const orderData = {
+        userId: currentUser.id,
+        orderCode: finalOrderCode,
+        items: cart,
+        shippingDetails: {
+          name: values.name,
+          phone: values.phone,
+          email: values.email,
+          address: values.address,
+          notes: values.notes
+        },
+        paymentMethod: values.paymentMethod,
+        subtotal: getCartTotal(),
+        shippingFee: shippingFee,
+        discount: discountAmount,
+        voucher: appliedVoucher ? appliedVoucher.code : null,
+        total: getCartTotal() + shippingFee - discountAmount,
+        paymentStatus: values.paymentMethod === 'cod' ? 'pending' : 'processing'
+      };
+      
+      // Tạo đơn hàng trước
+      const order = await createOrder(orderData);
+      
+      // Hiển thị thông báo đặt hàng thành công nổi bật
+      notification.success({
+        message: '🎉 Đặt hàng thành công!',
+        description: `Mã đơn hàng: ${finalOrderCode}. Đang chuyển đến trang xác nhận đặt hàng...`,
+        duration: 3,
+        placement: 'topRight',
+        icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />
+      });
+      
+      // Nếu thanh toán bằng COD, chuyển đến trang order success
+      if (values.paymentMethod === 'cod') {
+        clearCart();
+        // Chuyển đến trang order success với thông tin đơn hàng
+        navigate('/order-success', { 
+          state: { orderDetails: orderData }
+        });
+      } else {
+        // Nếu thanh toán chuyển khoản, hiển thị QR
+        setQrVisible(true);
+      }
+      
+      // Gửi thông báo đặt hàng thành công qua chatbot
+      try {
+        await sendSystemMessage(
+          currentUser.id, 
+          `🎉 Đặt hàng thành công! 🎉\n\nĐơn hàng: ${finalOrderCode}\nTổng tiền: ${orderData.total.toLocaleString('vi-VN')}đ\nPhương thức thanh toán: ${orderData.paymentMethod === 'cod' ? 'Thanh toán khi nhận hàng' : 'Chuyển khoản ngân hàng'}\n\nBạn có thể xem chi tiết đơn hàng trong mục "Đơn hàng của tôi". Cảm ơn bạn đã mua sắm tại CLOTHE Shop!`
+        );
+      } catch (chatError) {
+        console.error('Lỗi khi gửi thông báo qua chat:', chatError);
+      }
+      
+>>>>>>> 5431660930fded447cff8e4779c5c53cce3ff665
     } catch (error) {
       console.error('Lỗi khi đặt hàng:', error);
-      message.error('Có lỗi xảy ra khi đặt hàng. Vui lòng thử lại sau.');
+      notification.error({
+        message: 'Đặt hàng thất bại',
+        description: 'Có lỗi xảy ra khi đặt hàng. Vui lòng thử lại sau.',
+        duration: 10
+      });
     } finally {
       setLoading(false);
     }
@@ -152,6 +366,7 @@ const CheckoutPage = () => {
   };
 
   // Xử lý khi hoàn tất thanh toán chuyển khoản
+<<<<<<< HEAD
   const handleCompletePayment = () => {
     if (orderData) {
       // Cập nhật trạng thái thanh toán thành công
@@ -164,6 +379,58 @@ const CheckoutPage = () => {
       finalizeOrder(updatedOrderData);
       setQrVisible(false);
     }
+=======
+  const handleCompletePayment = async () => {
+    try {
+      const orderData = {
+        userId: currentUser.id,
+        orderCode: orderCode,
+        items: cart,
+        shippingDetails: form.getFieldsValue(['name', 'phone', 'email', 'address', 'notes']),
+        paymentMethod: 'bank_transfer',
+        subtotal: getCartTotal(),
+        shippingFee: shippingFee,
+        discount: discountAmount,
+        voucher: appliedVoucher ? appliedVoucher.code : null,
+        total: getCartTotal() + shippingFee - discountAmount,
+        paymentStatus: 'confirmed'
+      };
+      
+    clearCart();
+    setQrVisible(false);
+      
+      // Chuyển đến trang order success
+      navigate('/order-success', { 
+        state: { orderDetails: orderData }
+      });
+      
+      notification.success({
+        message: '✅ Thanh toán thành công!',
+        description: `Đơn hàng ${orderCode} đã được xác nhận thanh toán thành công! Đang chuyển đến trang xác nhận đặt hàng...`,
+        duration: 3,
+        placement: 'topRight',
+        icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />
+      });
+
+      // Gửi thông báo xác nhận thanh toán qua chatbot
+      try {
+        await sendSystemMessage(
+          currentUser.id, 
+          `✅ Cảm ơn bạn đã hoàn tất thanh toán!\n\nĐơn hàng: ${orderCode}\nPhương thức: Chuyển khoản ngân hàng\n\nChúng tôi sẽ xử lý đơn hàng và thông báo cho bạn khi đơn hàng được vận chuyển.`
+        );
+      } catch (chatError) {
+        console.error('Lỗi khi gửi thông báo thanh toán:', chatError);
+      }
+    } catch (error) {
+      console.error('Lỗi khi hoàn tất thanh toán:', error);
+    }
+  };
+
+  // Xử lý khi tự xác nhận đã chuyển khoản
+  const handleSelfConfirmPayment = () => {
+    setPaymentConfirmed(true);
+    message.success('Cảm ơn bạn đã xác nhận thanh toán!');
+>>>>>>> 5431660930fded447cff8e4779c5c53cce3ff665
   };
   
   const nextStep = () => {
@@ -178,7 +445,7 @@ const CheckoutPage = () => {
   
   // Tạo URL QR VietQR
   const getQRCodeUrl = () => {
-    const amount = getCartTotal() + 30000;
+    const amount = getCartTotal() + shippingFee - discountAmount;
     const bankCode = 'VCB'; // Vietcombank
     const accountNumber = '9979542918';
     const accountName = 'BUI+VAN+HIEP';
@@ -272,7 +539,7 @@ const CheckoutPage = () => {
                 </Row>
                 <Row>
                   <Col span={8}><Text strong>Số tiền:</Text></Col>
-                  <Col span={16}><Text type="danger">{(getCartTotal() + 30000).toLocaleString('vi-VN')}đ</Text></Col>
+                  <Col span={16}><Text type="danger">{(getCartTotal() + shippingFee).toLocaleString('vi-VN')}đ</Text></Col>
                 </Row>
                 <Row>
                   <Col span={8}><Text strong>Nội dung CK:</Text></Col>
@@ -298,6 +565,104 @@ const CheckoutPage = () => {
           )}
           
           <Divider />
+          
+          {/* Phần mã giảm giá */}
+          <div style={{ marginBottom: 20 }}>
+            <Row gutter={[8, 8]} align="middle">
+              <Col span={16}>
+                <Input
+                  placeholder="Nhập mã giảm giá"
+                  value={voucherCode}
+                  onChange={handleVoucherCodeChange}
+                  disabled={!!appliedVoucher}
+                  prefix={<TagOutlined style={{ color: '#1890ff' }} />}
+                />
+              </Col>
+              <Col span={8}>
+                {!appliedVoucher ? (
+                  <Button 
+                    type="primary" 
+                    onClick={handleApplyVoucher} 
+                    loading={voucherLoading}
+                    style={{ width: '100%' }}
+                  >
+                    Áp dụng
+                  </Button>
+                ) : (
+                  <Button 
+                    danger 
+                    onClick={handleRemoveVoucher}
+                    style={{ width: '100%' }}
+                  >
+                    Hủy mã
+                  </Button>
+                )}
+              </Col>
+            </Row>
+            
+            {/* Hiển thị thông báo lỗi voucher */}
+            {voucherErrorMessage && (
+              <Alert
+                message={voucherErrorMessage.title}
+                description={
+                  <div>
+                    <div>{voucherErrorMessage.content}</div>
+                    {voucherErrorMessage.tip && (
+                      <div style={{ marginTop: '10px', fontSize: '13px', color: '#722ed1' }}>
+                        <InfoCircleOutlined style={{ marginRight: '5px' }} />
+                        {voucherErrorMessage.tip}
+                      </div>
+                    )}
+                  </div>
+                }
+                type="error"
+                showIcon
+                closable
+                onClose={() => setVoucherErrorMessage(null)}
+                style={{ marginTop: '10px' }}
+              />
+            )}
+            
+            {appliedVoucher && (
+              <div className="applied-voucher-info" style={{ marginBottom: '15px' }}>
+                <div style={{ 
+                  border: '1px solid #b7eb8f', 
+                  borderRadius: '6px', 
+                  padding: '10px 15px',
+                  backgroundColor: '#f6ffed',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 'bold', color: '#389e0d', display: 'flex', alignItems: 'center' }}>
+                      <CheckCircleOutlined style={{ marginRight: '6px' }} /> 
+                      Mã giảm giá: {appliedVoucher.code}
+                    </div>
+                    <div style={{ fontSize: '12px', marginTop: '4px' }}>
+                      {appliedVoucher.description}
+                    </div>
+                    <div style={{ fontSize: '13px', marginTop: '4px', color: '#f5222d', fontWeight: 'bold' }}>
+                      Tiết kiệm: {discountAmount.toLocaleString('vi-VN')}đ
+                    </div>
+                  </div>
+                  <Button 
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    onClick={() => {
+                      setAppliedVoucher(null);
+                      setDiscountAmount(0);
+                      setShippingFee(30000);
+                      message.info('Đã xóa mã giảm giá');
+                    }}
+                  >
+                    Xóa
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
           
           <div style={{ background: '#f5f5f5', padding: 16, borderRadius: 4 }}>
             <Title level={5}>Thông tin đơn hàng</Title>
@@ -325,9 +690,18 @@ const CheckoutPage = () => {
             <Row style={{ marginBottom: 8 }}>
               <Col span={16}>Phí vận chuyển</Col>
               <Col span={8} style={{ textAlign: 'right' }}>
-                30,000đ
+                {shippingFee.toLocaleString('vi-VN')}đ
               </Col>
             </Row>
+            
+            {discountAmount > 0 && (
+              <Row style={{ marginBottom: 8 }}>
+                <Col span={16}>Giảm giá</Col>
+                <Col span={8} style={{ textAlign: 'right', color: '#52c41a' }}>
+                  -{discountAmount.toLocaleString('vi-VN')}đ
+                </Col>
+              </Row>
+            )}
             
             <Divider style={{ margin: '12px 0' }} />
             
@@ -335,7 +709,7 @@ const CheckoutPage = () => {
               <Col span={16}><Text strong>Tổng cộng</Text></Col>
               <Col span={8} style={{ textAlign: 'right' }}>
                 <Text strong style={{ fontSize: '16px', color: 'red' }}>
-                  {(getCartTotal() + 30000).toLocaleString('vi-VN')}đ
+                  {(getCartTotal() + shippingFee - discountAmount).toLocaleString('vi-VN')}đ
                 </Text>
               </Col>
             </Row>
@@ -346,21 +720,14 @@ const CheckoutPage = () => {
     {
       title: 'Hoàn thành',
       content: (
-        <div style={{ textAlign: 'center', padding: '40px 0' }}>
-          <img 
-            src="https://cdn-icons-png.flaticon.com/512/190/190411.png" 
-            alt="Success" 
-            style={{ width: 100, height: 100, margin: '0 auto 20px' }} 
-          />
-          <Title level={3}>Đặt hàng thành công!</Title>
-          <Text>
-            Cảm ơn bạn đã đặt hàng. Đơn hàng của bạn đang được xử lý.
-          </Text>
-          <div style={{ marginTop: 20 }}>
-            <Button type="primary" onClick={() => navigate('/')}>
-              Quay lại trang chủ
-            </Button>
+        <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+          <div style={{ marginBottom: '20px' }}>
+            <Spin size="large" />
           </div>
+          <Title level={3}>Đang xử lý đơn hàng...</Title>
+          <Paragraph>
+            Vui lòng đợi trong giây lát, chúng tôi đang chuyển hướng bạn đến trang xác nhận đặt hàng.
+          </Paragraph>
         </div>
       )
     }
@@ -384,7 +751,7 @@ const CheckoutPage = () => {
           Đơn hàng của bạn sẽ được giao đến địa chỉ: <Text strong>{form.getFieldValue('address')}</Text>
         </Paragraph>
         <Paragraph>
-          Tổng số tiền cần thanh toán khi nhận hàng: <Text strong style={{ color: 'red' }}>{(getCartTotal() + 30000).toLocaleString('vi-VN')}đ</Text>
+          Tổng số tiền cần thanh toán khi nhận hàng: <Text strong style={{ color: 'red' }}>{(getCartTotal() + shippingFee - discountAmount).toLocaleString('vi-VN')}đ</Text>
         </Paragraph>
         <Paragraph type="secondary">
           Lưu ý: Vui lòng chuẩn bị đúng số tiền khi nhận hàng để việc giao nhận được thuận lợi.
@@ -433,7 +800,7 @@ const CheckoutPage = () => {
             </Row>
             <Row>
               <Col span={10}><Text strong>Số tiền:</Text></Col>
-              <Col span={14}><Text type="danger">{(getCartTotal() + 30000).toLocaleString('vi-VN')}đ</Text></Col>
+              <Col span={14}><Text type="danger">{(getCartTotal() + shippingFee - discountAmount).toLocaleString('vi-VN')}đ</Text></Col>
             </Row>
             <Row>
               <Col span={10}><Text strong>Nội dung CK:</Text></Col>

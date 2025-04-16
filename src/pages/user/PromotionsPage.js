@@ -353,7 +353,7 @@ const PromotionsPage = () => {
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: 4 }}>
                           <StarOutlined style={{ color: '#faad14' }} />
-                          <Text>{(item.rating || 4.5).toFixed(1)}</Text>
+                          <Text>{Number(item.rating || 4.5).toFixed(1)}</Text>
                           <Text type="secondary">({item.reviews || 0})</Text>
                         </div>
                         

@@ -20,11 +20,13 @@ import ProductListPage from './pages/user/ProductListPage';
 import ProductDetailPage from './pages/user/ProductDetailPage';
 import CartPage from './pages/user/CartPage';
 import CheckoutPage from './pages/user/CheckoutPage';
+import OrderSuccessPage from './pages/user/OrderSuccessPage';
 import ProfilePage from './pages/user/ProfilePage';
 import OrderHistoryPage from './pages/user/OrderHistoryPage';
 import CollectionsPage from './pages/user/CollectionsPage';
 import CollectionDetailPage from './pages/user/CollectionDetailPage';
 import PromotionsPage from './pages/user/PromotionsPage';
+import StoresPage from './pages/user/StoresPage';
 
 // Admin Pages
 import ProductManagementPage from './pages/admin/ProductManagementPage';
@@ -32,6 +34,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import OrderManagementPage from './pages/admin/OrderManagementPage';
 import UserManagementPage from './pages/admin/UserManagementPage';
 import ChatManagementPage from './pages/admin/ChatManagementPage';
+import VouchersManagementPage from './pages/admin/VouchersManagementPage';
 
 // Protected Routes
 const PrivateRoute = ({ children }) => {
@@ -67,10 +70,16 @@ function App() {
                   <Route path="collections" element={<CollectionsPage />} />
                   <Route path="collections/:id" element={<CollectionDetailPage />} />
                   <Route path="promotions" element={<PromotionsPage />} />
+                  <Route path="stores" element={<StoresPage />} />
                   <Route path="cart" element={<CartPage />} />
                   <Route path="checkout" element={
                     <PrivateRoute>
                       <CheckoutPage />
+                    </PrivateRoute>
+                  } />
+                  <Route path="order-success" element={
+                    <PrivateRoute>
+                      <OrderSuccessPage />
                     </PrivateRoute>
                   } />
                   <Route path="profile" element={
@@ -95,6 +104,7 @@ function App() {
                   <Route path="orders" element={<OrderManagementPage />} />
                   <Route path="users" element={<UserManagementPage />} />
                   <Route path="chat" element={<ChatManagementPage />} />
+                  <Route path="vouchers" element={<VouchersManagementPage />} />
                 </Route>
               </Routes>
             </BrowserRouter>

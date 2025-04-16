@@ -1,5 +1,61 @@
 import { initChatData } from '../api/chatApi';
 
+// Voucher mẫu
+const initVouchers = [
+  {
+    id: 'WELCOME10',
+    code: 'WELCOME10',
+    type: 'percent',
+    value: 10,
+    minOrderValue: 200000,
+    maxDiscount: 100000,
+    description: 'Giảm 10% cho đơn hàng từ 200,000đ, tối đa 100,000đ',
+    expiry: '2024-12-31',
+    isActive: true,
+    usageLimit: 1000,
+    usageCount: 0
+  },
+  {
+    id: 'FREESHIP',
+    code: 'FREESHIP',
+    type: 'shipping',
+    value: 30000,
+    minOrderValue: 500000,
+    maxDiscount: 30000,
+    description: 'Miễn phí vận chuyển cho đơn hàng từ 500,000đ',
+    expiry: '2024-12-31',
+    isActive: true,
+    usageLimit: 1000,
+    usageCount: 0
+  },
+  {
+    id: 'SUMMER30',
+    code: 'SUMMER30',
+    type: 'percent',
+    value: 30,
+    minOrderValue: 1000000,
+    maxDiscount: 300000,
+    description: 'Giảm 30% cho đơn hàng từ 1,000,000đ, tối đa 300,000đ',
+    expiry: '2024-08-31',
+    isActive: true,
+    usageLimit: 500,
+    usageCount: 0
+  },
+  {
+    id: 'FIXED50K',
+    code: 'FIXED50K',
+    type: 'fixed',
+    value: 50000,
+    minOrderValue: 300000,
+    maxDiscount: 50000,
+    description: 'Giảm 50,000đ cho đơn hàng từ 300,000đ',
+    expiry: '2024-12-31',
+    isActive: true,
+    usageLimit: 1000,
+    usageCount: 0
+  }
+];
+
 export const initializeAppData = () => {
   console.log('Đang khởi tạo dữ liệu ứng dụng...');
   
@@ -264,6 +320,12 @@ export const initializeAppData = () => {
   // Khởi tạo khung dữ liệu đánh giá sản phẩm nếu chưa có
   if (!localStorage.getItem('productReviews')) {
     localStorage.setItem('productReviews', JSON.stringify({}));
+  }
+  
+  // Khởi tạo vouchers
+  if (!localStorage.getItem('vouchers')) {
+    localStorage.setItem('vouchers', JSON.stringify(initVouchers));
+    console.log('Đã khởi tạo dữ liệu voucher');
   }
   
   // In ra thông tin đã khởi tạo dữ liệu để debug
