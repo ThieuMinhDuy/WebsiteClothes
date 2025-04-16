@@ -118,15 +118,18 @@ export const getConversation = async (userId) => {
  * @param {string} messageData.userId - ID của người dùng
  * @param {string} messageData.text - Nội dung tin nhắn
  * @param {string} messageData.sender - Người gửi (user/admin)
+ * @param {boolean} [messageData.isSystem] - Đánh dấu nếu là tin nhắn hệ thống
  * @param {string} [messageData.conversationId] - ID của cuộc trò chuyện (nếu có)
  * @returns {Promise<Object>} - Thông tin tin nhắn đã gửi
  */
 export const sendMessage = async (messageData) => {
-  const { userId, text, sender, conversationId } = messageData;
+  const { userId, text, sender, conversationId, isSystem } = messageData;
   
   if (!userId || !text || !sender) {
     throw new Error('UserId, text and sender are required');
   }
+
+  console.log('Đang gửi tin nhắn với dữ liệu:', messageData);
 
   // Mô phỏng độ trễ của API thực tế
   await new Promise(resolve => setTimeout(resolve, 500));
@@ -164,11 +167,14 @@ export const sendMessage = async (messageData) => {
   // Tạo tin nhắn mới
   const newMessage = {
     id: Date.now().toString(),
-    text,
-    sender,
+    text: text,
+    sender: sender,
     timestamp: new Date().toISOString(),
-    read: sender === 'admin' ? false : true // Tin nhắn của admin chưa đọc, tin nhắn của user đã đọc
+    read: sender === 'admin' ? false : true, // Tin nhắn của admin chưa đọc, tin nhắn của user đã đọc
+    isSystem: !!isSystem // Đảm bảo giá trị boolean
   };
+
+  console.log('Tạo tin nhắn mới:', newMessage);
 
   // Thêm tin nhắn vào cuộc trò chuyện
   conversation.messages.push(newMessage);
@@ -185,6 +191,7 @@ export const sendMessage = async (messageData) => {
 
   // Cập nhật localStorage
   saveAllConversations(conversations);
+  console.log('Đã lưu tin nhắn vào localStorage');
 
   return newMessage;
 };
@@ -436,4 +443,63 @@ export const deleteConversation = async (conversationId) => {
   
   saveAllConversations(updatedConversations);
   return true;
+};
+
+/**
+ * Gửi tin nhắn voucher từ hệ thống
+ * @param {Object} voucherData - Dữ liệu voucher
+ * @param {string} voucherData.userId - ID của người dùng
+ * @param {string} voucherData.message - Thông điệp kèm theo voucher
+ * @param {Object} voucherData.voucher - Thông tin voucher
+ * @returns {Promise<Object>} - Thông tin tin nhắn đã gửi
+ */
+export const sendSystemVoucher = async (voucherData) => {
+  const { userId, message, voucher } = voucherData;
+  
+  if (!userId || !message || !voucher) {
+    throw new Error('UserId, message and voucher information are required');
+  }
+
+  // Mô phỏng độ trễ của API thực tế
+  await new Promise(resolve => setTimeout(resolve, 300));
+
+  let conversations = getAllConversations();
+  let conversation = conversations.find(c => c.userId === userId);
+
+  // Nếu chưa có cuộc trò chuyện, tạo mới
+  if (!conversation) {
+    conversation = {
+      id: Date.now().toString(),
+      userId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      status: 'open',
+      messages: []
+    };
+    conversations.push(conversation);
+  }
+
+  // Tạo tin nhắn voucher từ hệ thống
+  const newMessage = {
+    id: Date.now().toString(),
+    text: message,
+    sender: 'admin',
+    timestamp: new Date().toISOString(),
+    read: false,
+    isSystem: true,
+    voucherInfo: voucher
+  };
+
+  // Thêm tin nhắn vào cuộc trò chuyện
+  conversation.messages.push(newMessage);
+  conversation.updatedAt = new Date().toISOString();
+  
+  // Cập nhật số tin nhắn chưa đọc
+  conversation.unreadCount = conversation.unreadCount || { user: 0, admin: 0 };
+  conversation.unreadCount.user = (conversation.unreadCount.user || 0) + 1;
+
+  // Cập nhật localStorage
+  saveAllConversations(conversations);
+
+  return newMessage;
 };

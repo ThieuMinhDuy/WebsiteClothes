@@ -6,14 +6,47 @@ import {
   CloseOutlined, 
   UserOutlined, 
   CustomerServiceOutlined,
-  LoadingOutlined
+  LoadingOutlined,
+  CommentOutlined
 } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import { getUserFromLocalStorage } from '../../services/localStorage/userStorage';
-import { getConversation, sendMessage, markMessagesAsRead, getConversationsForAdmin, markMessagesAsReadForAdmin, sendAdminMessage } from '../../services/api/chatApi';
+import { getConversation, sendMessage, markMessagesAsRead, getConversationsForAdmin, markMessagesAsReadForAdmin, sendAdminMessage, sendSystemVoucher } from '../../services/api/chatApi';
 import './ChatBox.css';
+import { useAuth } from '../../contexts/AuthContext';
 
 const { Text } = Typography;
+
+// Hàm gửi tin nhắn tự động từ hệ thống
+export const sendSystemMessage = async (userId, message, voucherInfo = null) => {
+  try {
+    console.log('Đang gửi tin nhắn hệ thống:', { userId, message, hasVoucher: !!voucherInfo });
+    
+    if (voucherInfo) {
+      // Gửi tin nhắn kèm voucher
+      const result = await sendSystemVoucher({
+        userId,
+        message,
+        voucher: voucherInfo
+      });
+      console.log('Đã gửi tin nhắn voucher thành công:', result);
+      return result;
+    } else {
+      // Gửi tin nhắn thông thường từ hệ thống/admin
+      const result = await sendMessage({
+        userId,
+        text: message,
+        sender: 'admin',
+        isSystem: true
+      });
+      console.log('Đã gửi tin nhắn hệ thống thành công:', result);
+      return result;
+    }
+  } catch (error) {
+    console.error('Lỗi chi tiết khi gửi tin nhắn hệ thống:', error);
+    return null;
+  }
+};
 
 const ChatBox = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -276,6 +309,63 @@ const ChatBox = () => {
   // Danh sách cuộc trò chuyện đã sắp xếp
   const sortedConversations = getSortedConversations();
 
+  // Hiển thị tin nhắn, bao gồm cả thông tin voucher đặc biệt nếu có
+  const renderMessage = (msg) => {
+    const isAdmin = msg.sender === 'admin';
+    
+    // Hàm sao chép mã voucher vào clipboard
+    const copyVoucherCode = (code) => {
+      navigator.clipboard.writeText(code)
+        .then(() => {
+          message.success('Đã sao chép mã giảm giá vào clipboard');
+        })
+        .catch(() => {
+          message.error('Không thể sao chép mã. Vui lòng thử lại');
+        });
+    };
+    
+    // Nếu tin nhắn chứa thông tin voucher
+    if (msg.voucherInfo) {
+      return (
+        <div 
+          key={msg.id} 
+          className={`message ${isAdmin ? 'admin-message' : 'user-message'}`}
+        >
+          <div className="voucher-message">
+            <div className="voucher-header">
+              <span role="img" aria-label="gift">🎁</span> Mã giảm giá đặc biệt
+            </div>
+            <div 
+              className="voucher-code" 
+              onClick={() => copyVoucherCode(msg.voucherInfo.code)}
+              title="Nhấn để sao chép mã"
+            >
+              {msg.voucherInfo.code}
+            </div>
+            <div className="voucher-description">{msg.voucherInfo.description}</div>
+            <div className="voucher-expiry">Hạn sử dụng: {new Date(msg.voucherInfo.expiry).toLocaleDateString('vi-VN')}</div>
+            <div className="message-content">{msg.text || msg.content}</div>
+          </div>
+          <div className="message-time">{formatTime(msg.timestamp)}</div>
+        </div>
+      );
+    }
+    
+    // Tin nhắn thông thường
+    return (
+      <div 
+        key={msg.id} 
+        className={`message ${isAdmin ? 'admin-message' : 'user-message'} ${msg.isSystem ? 'system-message' : ''}`}
+      >
+        {isAdmin && msg.isSystem ? (
+          <div className="system-message-icon">🔔</div>
+        ) : null}
+        <div className="message-content">{msg.text || msg.content}</div>
+        <div className="message-time">{formatTime(msg.timestamp)}</div>
+      </div>
+    );
+  };
+
   return (
     <div className="chat-box-container">
       {isOpen ? (
@@ -360,42 +450,7 @@ const ChatBox = () => {
                           );
                         }
                         
-                        return (
-                          <div 
-                            key={`msg-${selectedConversationId}-${item.id || index}`}
-                            className={`message ${item.sender === 'admin' ? 'admin-message' : 'user-message'}`}
-                          >
-                            {item.sender === 'user' && (
-                              <Avatar 
-                                size="small" 
-                                icon={<UserOutlined />} 
-                                className="user-avatar"
-                                style={{ marginRight: '8px', alignSelf: 'flex-end' }} 
-                              />
-                            )}
-                            
-                            <div className="message-content">
-                              {item.text}
-                              <div className="message-time">
-                                {formatTime(item.timestamp)}
-                                {item.sender === 'admin' && (
-                                  <span className="read-status">
-                                    {item.read ? ' • Đã xem' : ' • Đã gửi'}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            
-                            {item.sender === 'admin' && (
-                              <Avatar 
-                                size="small" 
-                                icon={<CustomerServiceOutlined />} 
-                                className="admin-avatar"
-                                style={{ marginLeft: '8px', alignSelf: 'flex-end' }} 
-                              />
-                            )}
-                          </div>
-                        );
+                        return renderMessage(item);
                       })}
                       
                       <div ref={messagesEndRef} />
@@ -453,42 +508,7 @@ const ChatBox = () => {
                     );
                   }
                   
-                  return (
-                    <div 
-                      key={`msg-user-${item.id || index}`}
-                      className={`message ${item.sender === 'user' ? 'user-message' : 'admin-message'}`}
-                    >
-                      {item.sender === 'admin' && (
-                        <Avatar 
-                          size="small" 
-                          icon={<CustomerServiceOutlined />} 
-                          className="admin-avatar"
-                          style={{ marginRight: '8px', alignSelf: 'flex-end' }} 
-                        />
-                      )}
-                      
-                      <div className="message-content">
-                        {item.text}
-                        <div className="message-time">
-                          {formatTime(item.timestamp)}
-                          {item.sender === 'user' && (
-                            <span className="read-status">
-                              {item.read ? ' • Đã xem' : ' • Đã gửi'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {item.sender === 'user' && (
-                        <Avatar 
-                          size="small" 
-                          icon={<UserOutlined />} 
-                          className="user-avatar"
-                          style={{ marginLeft: '8px', alignSelf: 'flex-end' }} 
-                        />
-                      )}
-                    </div>
-                  );
+                  return renderMessage(item);
                 })}
                 
                 <div ref={messagesEndRef} />

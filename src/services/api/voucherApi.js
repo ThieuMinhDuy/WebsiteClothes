@@ -182,8 +182,54 @@ const applyVoucher = (code, subtotal, shippingFee) => {
   });
 };
 
+/**
+ * Tạo mã giảm giá 10% cho khách hàng khi đánh giá sản phẩm lần đầu
+ * @param {string} userId - ID của người dùng
+ */
+const generateReviewVoucher = (userId) => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      // Tạo mã voucher duy nhất cho người dùng
+      const timestamp = new Date().getTime().toString().slice(-6);
+      const voucherCode = `REVIEW10_${userId.slice(0, 4)}_${timestamp}`;
+      
+      // Tạo đối tượng voucher mới
+      const expiryDate = new Date();
+      expiryDate.setMonth(expiryDate.getMonth() + 3); // Hạn sử dụng 3 tháng
+      
+      const newVoucher = {
+        id: voucherCode,
+        code: voucherCode,
+        type: 'percent',
+        value: 10,
+        minOrderValue: 200000,
+        maxDiscount: 100000,
+        description: 'Giảm 10% cho đơn hàng từ 200,000đ, tối đa 100,000đ - Voucher dành cho khách đánh giá sản phẩm',
+        expiry: expiryDate.toISOString().split('T')[0],
+        isActive: true,
+        usageLimit: 1,
+        usageCount: 0,
+        userId: userId // Gán voucher cho người dùng cụ thể
+      };
+      
+      // Lưu voucher mới vào danh sách voucher trong localStorage
+      const storedVouchers = JSON.parse(localStorage.getItem('vouchers')) || vouchers;
+      storedVouchers.push(newVoucher);
+      localStorage.setItem('vouchers', JSON.stringify(storedVouchers));
+      
+      // Lưu thông tin voucher vào localStorage của người dùng
+      const userVouchers = JSON.parse(localStorage.getItem(`userVouchers_${userId}`)) || [];
+      userVouchers.push(newVoucher);
+      localStorage.setItem(`userVouchers_${userId}`, JSON.stringify(userVouchers));
+      
+      resolve(newVoucher);
+    }, 500);
+  });
+};
+
 export {
   getAllVouchers,
   validateVoucher,
-  applyVoucher
+  applyVoucher,
+  generateReviewVoucher
 }; 

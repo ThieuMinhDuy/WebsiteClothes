@@ -476,6 +476,52 @@ const updateProductAverageRating = (productId) => {
   }
 };
 
+/**
+ * Lưu đánh giá cho sản phẩm từ đơn hàng
+ * @param {Object} reviewData - Dữ liệu đánh giá
+ * @returns {Promise<Object>} - Đánh giá đã lưu
+ */
+export const saveReview = (reviewData) => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const { productId, userId, userName, rating, comment, orderId } = reviewData;
+      
+      // Tải đánh giá hiện có
+      const allReviews = JSON.parse(localStorage.getItem('productReviews')) || {};
+      const productReviews = allReviews[productId] || [];
+      
+      // Tạo đánh giá mới
+      const newReview = {
+        id: Date.now().toString(),
+        productId,
+        userId,
+        userName,
+        rating,
+        comment,
+        orderId,
+        createdAt: new Date().toISOString(),
+        likes: 0,
+        verified: true
+      };
+      
+      // Thêm đánh giá mới vào danh sách
+      productReviews.push(newReview);
+      allReviews[productId] = productReviews;
+      
+      // Lưu vào localStorage
+      localStorage.setItem('productReviews', JSON.stringify(allReviews));
+      
+      // Cập nhật trạng thái đánh giá cho đơn hàng
+      updateOrderReviewStatus(orderId, productId);
+      
+      // Cập nhật rating trung bình cho sản phẩm
+      updateProductAverageRating(productId);
+      
+      resolve(newReview);
+    }, 500);
+  });
+};
+
 export {
   getProducts,
   getProductById,

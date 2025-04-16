@@ -20,6 +20,7 @@ import ProductListPage from './pages/user/ProductListPage';
 import ProductDetailPage from './pages/user/ProductDetailPage';
 import CartPage from './pages/user/CartPage';
 import CheckoutPage from './pages/user/CheckoutPage';
+import OrderSuccessPage from './pages/user/OrderSuccessPage';
 import ProfilePage from './pages/user/ProfilePage';
 import OrderHistoryPage from './pages/user/OrderHistoryPage';
 import CollectionsPage from './pages/user/CollectionsPage';
@@ -74,6 +75,11 @@ function App() {
                   <Route path="checkout" element={
                     <PrivateRoute>
                       <CheckoutPage />
+                    </PrivateRoute>
+                  } />
+                  <Route path="order-success" element={
+                    <PrivateRoute>
+                      <OrderSuccessPage />
                     </PrivateRoute>
                   } />
                   <Route path="profile" element={

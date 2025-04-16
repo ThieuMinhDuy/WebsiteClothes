@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Table, Tag, Button, Space, Empty, Steps, Spin, Typography, Modal, Descriptions, Divider, Rate, Input, message } from 'antd';
-import { EyeOutlined, CheckCircleOutlined, ClockCircleOutlined, StopOutlined, StarOutlined } from '@ant-design/icons';
+import { Table, Tag, Button, Space, Empty, Steps, Spin, Typography, Modal, Descriptions, Divider, Rate, Input, message, Timeline, Tooltip, Row, Col, Card } from 'antd';
+import { EyeOutlined, CheckCircleOutlined, ClockCircleOutlined, StopOutlined, StarOutlined, UserOutlined, ShoppingOutlined, CarOutlined, FormOutlined } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { getOrders } from '../../services/api/orderApi';
-import { checkProductReviewed, addProductReview } from '../../services/api/productApi';
+import { checkProductReviewed, addProductReview, saveReview } from '../../services/api/productApi';
+import { generateReviewVoucher } from '../../services/api/voucherApi';
+import { sendSystemMessage } from '../../components/ChatBox/ChatBox';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 const { Step } = Steps;
 const { TextArea } = Input;
 
@@ -16,11 +18,17 @@ const OrderHistoryPage = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [currentOrder, setCurrentOrder] = useState(null);
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
-  const [reviewProduct, setReviewProduct] = useState(null);
-  const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState('');
+  const [currentOrderItem, setCurrentOrderItem] = useState(null);
+  const [reviewForm, setReviewForm] = useState({
+    rating: 5,
+    comment: ''
+  });
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewedItems, setReviewedItems] = useState({});
+  const [hasReviewed, setHasReviewed] = useState(false);
+  const [voucherModalVisible, setVoucherModalVisible] = useState(false);
+  const [reviewVoucher, setReviewVoucher] = useState(null);
+  const [expandedRowKeys, setExpandedRowKeys] = useState([]);
 
   // Tải đơn hàng của người dùng
   useEffect(() => {
@@ -31,6 +39,13 @@ const OrderHistoryPage = () => {
       try {
         const ordersData = await getOrders(currentUser.id);
         setOrders(ordersData);
+        
+        // Kiểm tra xem người dùng đã đánh giá lần nào chưa
+        const reviewed = ordersData.some(order => 
+          order.items && order.items.some(item => item.reviewed)
+        );
+        
+        setHasReviewed(reviewed);
         
         // Khởi tạo đối tượng lưu trạng thái đánh giá của các sản phẩm
         const reviewedMap = {};
@@ -60,45 +75,76 @@ const OrderHistoryPage = () => {
   };
 
   // Hiển thị modal đánh giá sản phẩm
-  const showReviewModal = (order, product) => {
-    setCurrentOrder(order);
-    setReviewProduct(product);
-    setRating(5);
-    setComment('');
+  const showReviewModal = (order, item) => {
+    setCurrentOrderItem({ order, item });
+    setReviewForm({
+      rating: 5,
+      comment: ''
+    });
     setReviewModalVisible(true);
   };
 
   // Gửi đánh giá sản phẩm
-  const submitReview = async () => {
-    if (!comment.trim()) {
-      message.warning('Vui lòng nhập nội dung đánh giá');
-      return;
-    }
-    
-    setSubmittingReview(true);
+  const handleReviewSubmit = async () => {
+    if (!currentOrderItem) return;
+
     try {
-      const reviewData = {
-        productId: reviewProduct.id,
+      const { order, item } = currentOrderItem;
+      
+      await saveReview({
         userId: currentUser.id,
-        userName: currentUser.name || currentUser.email,
-        rating,
-        comment: comment.trim(),
-        orderId: currentOrder.id
-      };
-      
-      await addProductReview(reviewData);
-      
-      // Cập nhật trạng thái đã đánh giá
-      const key = `${currentOrder.id}-${reviewProduct.id}`;
-      setReviewedItems(prev => ({ ...prev, [key]: true }));
-      
-      message.success('Cảm ơn bạn đã đánh giá sản phẩm!');
+        productId: item.id,
+        orderId: order.id,
+        orderItemId: item.cartItemId,
+        rating: reviewForm.rating,
+        comment: reviewForm.comment,
+        reviewDate: new Date().toISOString(),
+        userName: currentUser.name || 'Khách hàng',
+      });
+
+      // Kiểm tra xem đây có phải lần đánh giá đầu tiên không
+      if (!hasReviewed) {
+        // Tạo voucher giảm giá 10% cho khách hàng đánh giá lần đầu
+        const voucher = await generateReviewVoucher(currentUser.id);
+        
+        // Lưu voucher để hiển thị trong modal
+        setReviewVoucher(voucher);
+        setVoucherModalVisible(true);
+        setHasReviewed(true);
+        
+        // Gửi thông báo và mã giảm giá qua chatbot
+        const messageContent = `Cảm ơn bạn đã đánh giá sản phẩm lần đầu! Chúng tôi đã tặng bạn một mã giảm giá 10% cho đơn hàng tiếp theo.`;
+        try {
+          await sendSystemMessage(currentUser.id, messageContent, voucher);
+          message.success('Mã giảm giá đã được gửi đến hộp tin nhắn của bạn!');
+        } catch (chatError) {
+          console.error('Lỗi khi gửi tin nhắn voucher:', chatError);
+        }
+      }
+
+      message.success('Đánh giá sản phẩm thành công!');
       setReviewModalVisible(false);
+      
+      // Cập nhật trạng thái đã đánh giá cho sản phẩm
+      const updatedOrders = orders.map(o => {
+        if (o.id === order.id) {
+          return {
+            ...o,
+            items: o.items.map(i => {
+              if (i.id === item.id) {
+                return { ...i, reviewed: true };
+              }
+              return i;
+            })
+          };
+        }
+        return o;
+      });
+      
+      setOrders(updatedOrders);
     } catch (error) {
-      console.error('Lỗi khi gửi đánh giá:', error);
-      message.error('Đã xảy ra lỗi khi gửi đánh giá. Vui lòng thử lại sau.');
-    } finally {
-      setSubmittingReview(false);
+      console.error('Error submitting review:', error);
+      message.error('Không thể gửi đánh giá. Vui lòng thử lại sau!');
     }
   };
 
@@ -202,6 +248,123 @@ const OrderHistoryPage = () => {
           dataSource={orders} 
           rowKey="id"
           pagination={{ pageSize: 10 }}
+          expandable={{
+            expandedRowKeys,
+            onExpandedRowsChange: (expandedRows) => setExpandedRowKeys(expandedRows),
+            expandedRowRender: (record) => (
+              <div style={{ padding: 8 }}>
+                <div style={{ marginBottom: 16 }}>
+                  <Title level={5}>Chi tiết đơn hàng</Title>
+                  <div style={{ marginBottom: 8 }}>
+                    <Text strong>Mã đơn hàng:</Text> {record.id}
+                  </div>
+                  <div style={{ marginBottom: 8 }}>
+                    <Text strong>Ngày đặt:</Text> {new Date(record.createdAt).toLocaleDateString('vi-VN')}
+                  </div>
+                  <div style={{ marginBottom: 8 }}>
+                    <Text strong>Địa chỉ giao hàng:</Text> {record.shippingDetails?.address}
+                  </div>
+                  <div style={{ marginBottom: 8 }}>
+                    <Text strong>Phương thức thanh toán:</Text> {record.paymentMethod === 'cod' ? 'Thanh toán khi nhận hàng' : 'Chuyển khoản ngân hàng'}
+                  </div>
+                  {record.shippingDetails?.notes && (
+                    <div style={{ marginBottom: 8 }}>
+                      <Text strong>Ghi chú:</Text> {record.shippingDetails.notes}
+                    </div>
+                  )}
+                </div>
+                
+                <div style={{ marginBottom: 16 }}>
+                  <Title level={5}>Sản phẩm đã mua</Title>
+                  {record.items.map((item, index) => (
+                    <div 
+                      key={index} 
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '12px 0',
+                        borderBottom: index < record.items.length - 1 ? '1px solid #f0f0f0' : 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <img 
+                          src={item.images[0] || "https://via.placeholder.com/50x50?text=No+Image"} 
+                          alt={item.name}
+                          style={{ width: 70, height: 70, objectFit: 'cover', marginRight: 16 }} 
+                        />
+                        <div>
+                          <div>{item.name}</div>
+                          <div style={{ color: '#888', fontSize: 12 }}>
+                            Size: {item.selectedSize}, Màu: {item.selectedColor} x {item.quantity}
+                          </div>
+                          <div style={{ fontWeight: 'bold' }}>
+                            {item.price.toLocaleString('vi-VN')}đ
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        {record.status === 'completed' && (
+                          <Button 
+                            type={item.reviewed ? "default" : "primary"} 
+                            icon={<FormOutlined />}
+                            onClick={() => showReviewModal(record, item)}
+                            disabled={item.reviewed}
+                          >
+                            {item.reviewed ? 'Đã đánh giá' : 'Đánh giá'}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                <div>
+                  <Title level={5}>Trạng thái đơn hàng</Title>
+                  <Timeline>
+                    <Timeline.Item color="green">
+                      <Text strong>Đặt hàng thành công</Text><br />
+                      <Text type="secondary">{new Date(record.createdAt).toLocaleString('vi-VN')}</Text>
+                    </Timeline.Item>
+                    
+                    {record.status === 'processing' || record.status === 'shipped' || record.status === 'completed' ? (
+                      <Timeline.Item color="blue">
+                        <Text strong>Đang xử lý</Text><br />
+                        <Text type="secondary">{new Date(new Date(record.createdAt).getTime() + 1000*60*60).toLocaleString('vi-VN')}</Text>
+                      </Timeline.Item>
+                    ) : (
+                      <Timeline.Item color="gray">
+                        <Text>Đang xử lý</Text>
+                      </Timeline.Item>
+                    )}
+                    
+                    {record.status === 'shipped' || record.status === 'completed' ? (
+                      <Timeline.Item color="blue">
+                        <Text strong>Đang giao hàng</Text><br />
+                        <Text type="secondary">{new Date(new Date(record.createdAt).getTime() + 1000*60*60*24).toLocaleString('vi-VN')}</Text>
+                      </Timeline.Item>
+                    ) : (
+                      <Timeline.Item color="gray">
+                        <Text>Đang giao hàng</Text>
+                      </Timeline.Item>
+                    )}
+                    
+                    {record.status === 'completed' ? (
+                      <Timeline.Item color="green">
+                        <Text strong>Giao hàng thành công</Text><br />
+                        <Text type="secondary">{new Date(new Date(record.createdAt).getTime() + 1000*60*60*24*3).toLocaleString('vi-VN')}</Text>
+                      </Timeline.Item>
+                    ) : (
+                      <Timeline.Item color="gray">
+                        <Text>Giao hàng thành công</Text>
+                      </Timeline.Item>
+                    )}
+                  </Timeline>
+                </div>
+              </div>
+            ),
+          }}
         />
       )}
       
@@ -379,69 +542,89 @@ const OrderHistoryPage = () => {
       <Modal
         title="Đánh giá sản phẩm"
         visible={reviewModalVisible}
+        onOk={handleReviewSubmit}
         onCancel={() => setReviewModalVisible(false)}
-        footer={[
-          <Button key="cancel" onClick={() => setReviewModalVisible(false)}>
-            Hủy
-          </Button>,
-          <Button 
-            key="submit" 
-            type="primary" 
-            loading={submittingReview} 
-            onClick={submitReview}
-          >
-            Gửi đánh giá
-          </Button>,
-        ]}
+        okText="Gửi đánh giá"
+        cancelText="Hủy"
       >
-        {reviewProduct && (
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
+        {currentOrderItem && (
+          <>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
               <img 
-                src={reviewProduct.images[0] || "https://via.placeholder.com/80x80?text=No+Image"} 
-                alt={reviewProduct.name}
-                style={{ width: 80, height: 80, objectFit: 'cover', marginRight: 16 }} 
+                src={currentOrderItem.item.images[0] || "https://via.placeholder.com/80x80?text=No+Image"} 
+                alt={currentOrderItem.item.name}
+                style={{ width: 100, height: 100, objectFit: 'cover' }}
               />
-              <div>
-                <Title level={4} style={{ margin: 0 }}>{reviewProduct.name}</Title>
-                <div style={{ color: '#888' }}>
-                  Size: {reviewProduct.selectedSize}, Màu: {reviewProduct.selectedColor}
-                </div>
+              <div style={{ marginTop: 8 }}>
+                <Text strong>{currentOrderItem.item.name}</Text>
               </div>
             </div>
             
             <div style={{ marginBottom: 16 }}>
-              <Text strong>Đánh giá của bạn:</Text>
-              <div style={{ marginTop: 8 }}>
+              <Text>Chất lượng sản phẩm</Text>
+              <div>
                 <Rate 
-                  value={rating} 
-                  onChange={setRating} 
-                  style={{ fontSize: 32 }} 
+                  value={reviewForm.rating} 
+                  onChange={value => setReviewForm({...reviewForm, rating: value})}
                 />
-                <div style={{ marginTop: 4 }}>
-                  {rating === 5 && <Text type="success">Rất hài lòng</Text>}
-                  {rating === 4 && <Text type="success">Hài lòng</Text>}
-                  {rating === 3 && <Text>Bình thường</Text>}
-                  {rating === 2 && <Text type="warning">Không hài lòng</Text>}
-                  {rating === 1 && <Text type="danger">Rất không hài lòng</Text>}
-                </div>
               </div>
             </div>
             
             <div>
-              <Text strong>Nhận xét chi tiết:</Text>
+              <Text>Nhận xét của bạn</Text>
               <TextArea 
                 rows={4} 
-                value={comment} 
-                onChange={e => setComment(e.target.value)}
-                placeholder="Hãy chia sẻ cảm nhận của bạn về sản phẩm (chất lượng, kiểu dáng, màu sắc, kích thước, ...)"
-                maxLength={1000}
-                showCount
-                style={{ marginTop: 8 }}
+                placeholder="Chia sẻ trải nghiệm của bạn về sản phẩm..."
+                value={reviewForm.comment}
+                onChange={e => setReviewForm({...reviewForm, comment: e.target.value})}
               />
             </div>
-          </div>
+          </>
         )}
+      </Modal>
+
+      {/* Modal tặng voucher */}
+      <Modal
+        title={
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 24, marginBottom: 8 }}>🎁 Chúc mừng!</div>
+            <div>Bạn đã nhận được mã giảm giá</div>
+          </div>
+        }
+        visible={voucherModalVisible}
+        onOk={() => setVoucherModalVisible(false)}
+        onCancel={() => setVoucherModalVisible(false)}
+        okText="Đã hiểu"
+        cancelButtonProps={{ style: { display: 'none' } }}
+        centered
+        bodyStyle={{ padding: '24px 24px 12px' }}
+      >
+        {reviewVoucher && (
+          <Card style={{ 
+            textAlign: 'center', 
+            background: 'linear-gradient(135deg, #f6ffed, #d9f7be)',
+            border: '1px solid #b7eb8f', 
+            borderRadius: 8,
+            marginBottom: 16
+          }}>
+            <Title level={3} style={{ color: '#52c41a', margin: 0 }}>
+              {reviewVoucher.code}
+            </Title>
+            <Divider style={{ margin: '12px 0' }} />
+            <Text>{reviewVoucher.description}</Text>
+            <div style={{ marginTop: 12 }}>
+              <Text type="secondary">Hạn sử dụng: {new Date(reviewVoucher.expiry).toLocaleDateString('vi-VN')}</Text>
+            </div>
+          </Card>
+        )}
+        <Paragraph>
+          Cảm ơn bạn đã đánh giá sản phẩm. Chúng tôi đã tặng bạn mã giảm giá 10% 
+          cho đơn hàng tiếp theo. Bạn có thể sử dụng mã này khi thanh toán.
+        </Paragraph>
+        <Paragraph type="secondary">
+          Mã giảm giá sẽ được lưu trong tài khoản của bạn và có thể sử dụng cho đơn hàng 
+          có giá trị từ 200.000đ trở lên.
+        </Paragraph>
       </Modal>
     </div>
   );
